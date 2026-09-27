@@ -180,13 +180,14 @@
 </div>
 <main id="main"></main>
 
+<script src="config.js"></script>
 <script>
 /* ------------------------------------------------------------------
-   DIVISIONS SHEET: paste the link to your Google Sheet that lists the
-   divisions (columns: Stage, Division, Link, Show). Share it as
-   "Anyone with the link can view". Leave blank to use the list below.
+   DIVISIONS SHEET: the link to your Google Sheet that lists the divisions
+   is set in config.js, next to this file, so updating index.html never
+   overwrites it. The value below is only used if config.js is missing.
 ------------------------------------------------------------------- */
-const CONFIG_SHEET = "https://docs.google.com/spreadsheets/d/1RtIsoomRwrn-kGPWbcSdB3gV0ZGjVJMQCpMT71Y70DI/edit?usp=sharing";
+const CONFIG_SHEET = (window.VIEWER_CONFIG && window.VIEWER_CONFIG.divisionsSheet) || "";
 
 /* Built-in list, used when CONFIG_SHEET is blank or can't be reached.
    type is "pools" for pool play tabs or "brackets" for bracket tabs. */
