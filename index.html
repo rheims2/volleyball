@@ -71,7 +71,7 @@
   .round h3 { font: 700 20px "Barlow Condensed", sans-serif; margin: 0; }
   .round .slots { display: flex; flex-direction: column; justify-content: space-around; gap: 14px; flex: 1; }
   .bmatch { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
-  .bmatch .seed { color: var(--muted); font-size: 13px; font-weight: 500; min-width: 38px; }
+  .bmatch .seed { color: var(--muted); font-size: 13px; font-weight: 500; min-width: 38px; white-space: nowrap; }
   .bmatch .tbd .nm { color: var(--muted); font-style: italic; font-weight: 400; }
   .bmatch .foot { color: var(--muted); font-size: 14px; margin-top: 8px; }
   @media (max-width: 700px) { .bracket { grid-template-columns: 1fr; } .round .slots { justify-content: flex-start; } }
@@ -350,7 +350,26 @@ function parseBrackets(rows) {
     return { r: x.r, title, label, key: label + "@" + x.r, champion, matches: [], results: [], complete: false, award: "" };
   });
   if (!groups.length) groups = [{ r: 0, title: "Bracket", label: "Bracket", key: "b0", champion: "", matches: [], results: [], complete: false, award: "" }];
-  matches.forEach(m => nearest(groups, m.r).matches.push(m));
+
+  // Group matches by the class in their seed labels ("8A #1" -> 8A). Matches with no
+  // teams yet (a final waiting on its semis) join the closest match that has a group.
+  const labelOf = seed => String(seed || "").replace(/#\s*\d+\s*$/, "").trim().toLowerCase();
+  const byLabel = v => groups.find(g => g.label.toLowerCase() === v);
+  matches.forEach(m => { m.group = byLabel(labelOf(m.top && m.top.seed)) || byLabel(labelOf(m.bottom && m.bottom.seed)) || null; });
+  const closestMatch = (r, c, list) => list.reduce((best, x) => {
+    const d = Math.abs(x.r - r) + Math.abs(x.c - c);
+    return !best || d < best.d ? { x, d } : best;
+  }, null);
+  const placed = matches.filter(m => m.group);
+  matches.forEach(m => { if (!m.group) { const near = closestMatch(m.r, m.c, placed); m.group = near ? near.x.group : nearest(groups, m.r); } });
+  matches.forEach(m => m.group.matches.push(m));
+  // Results tables and awards: their own label ("8A Results") first, then the closest match
+  const groupAt = (r, c, text) => {
+    const g = groups.find(g => new RegExp("\\b" + g.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i").test(text || ""));
+    if (g) return g;
+    const near = closestMatch(r, c, matches);
+    return near ? near.x.group : nearest(groups, r);
+  };
 
   // Where each losing team goes ("Losing team to" / destination / team)
   cells.filter(x => /^losing team to$/i.test(x.v)).forEach(x => {
@@ -359,11 +378,11 @@ function parseBrackets(rows) {
   // Awards ("Winner:" / "Gold Ball & Medals")
   cells.filter(x => /^winner:?$/i.test(x.v)).forEach(x => {
     const row = rows[x.r]; const val = row.slice(x.c + 1).find(Boolean) || "";
-    if (val) nearest(groups, x.r).award = val;
+    if (val) groupAt(x.r, x.c, "").award = val;
   });
   // Results tables
   cells.filter(x => /results$/i.test(x.v)).forEach(x => {
-    const g = nearest(groups, x.r);
+    const g = groupAt(x.r, x.c, x.v);
     g.complete = g.complete || (rows[x.r] || []).some(v => /^complete$/i.test(v));
     for (let r = x.r + 1; r <= x.r + 2; r++) {
       const row = rows[r] || []; const rc = row.indexOf("Rank"); if (rc < 0) continue;

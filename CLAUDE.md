@@ -42,7 +42,7 @@ Verified only against "Girls 18u D1" Gold Ball tab (gid 1394730142). Each class 
 - Matches are anchored on the start-time cell ("5:00 pm"), with the day above and court and match name below. Team cells are found above and below in the same column; a team cell has a seed label like "8A #1" in the column to its left.
 - The score (e.g. "25-18, 31-29", winner's perspective) is written directly under the winning team. Fallback: a team appearing in the next round is treated as the winner.
 - Rounds are ordered by column (rightmost = Final). "Best of 5" note sits above the final's time.
-- "... Champions" title cell (champion name 1–3 rows below) defines each bracket; matches are grouped to the nearest title by row.
+- "... Champions" title cell (champion name 1–3 rows below) defines each bracket. Matches are grouped by the class in their seed labels ("8A #1" goes to 8A); a match with no teams yet joins the closest grouped match. "... Results" and "Winner:" cells use their own label, then the closest match. Nearest title by row is only the last resort.
 - "Losing team to" / destination (e.g. "Bronze-8") / team: where the semifinal loser goes.
 - "Winner:" / award text (e.g. "Gold Ball & Medals").
 - "... Results" row, then "Rank", "Advancement", "Teams" header and ranked rows.
