@@ -187,7 +187,14 @@
    is set in config.js, next to this file, so updating index.html never
    overwrites it. The value below is only used if config.js is missing.
 ------------------------------------------------------------------- */
-const CONFIG_SHEET = (window.VIEWER_CONFIG && window.VIEWER_CONFIG.divisionsSheet) || "";
+const VIEWER_CONFIG = window.VIEWER_CONFIG || {};
+const CONFIG_SHEET = VIEWER_CONFIG.divisionsSheet || "";
+/* Division discovery reads the official "Nationals Bracket Index" through the
+   Google Sheets API (the public feeds don't include link addresses). The API key
+   lives in config.js as sheetsApiKey. Scores never use the API. */
+const API_KEY = VIEWER_CONFIG.sheetsApiKey || "";
+const INDEX_SHEET = VIEWER_CONFIG.indexSheet || "https://docs.google.com/spreadsheets/d/1ONzz5XqL-buAxvHXNHfuTRtDayzaM10Cy7KlOdt5GL0/edit?gid=1891963095#gid=1891963095";
+const DISCOVERY_HOURS = 6;
 
 /* Built-in list, used when CONFIG_SHEET is blank or can't be reached.
    type is "pools" for pool play tabs or "brackets" for bracket tabs. */
@@ -427,15 +434,16 @@ function parseBrackets(rows) {
 function linkParts(url) {
   const s = String(url || "");
   const id = (s.match(/\/d\/([a-zA-Z0-9_-]{20,})/) || [])[1];
-  const gid = (s.match(/[#?&]gid=(\d+)/) || [])[1] || "0";
+  // No gid means the sheet's first tab (the export and gviz feeds default to it)
+  const gid = (s.match(/[#?&]gid=(\d+)/) || [])[1] || "";
   return id ? { id, gid } : null;
 }
 
 async function fetchRows(parts) {
-  const t = Date.now();
+  const t = Date.now(), gid = parts.gid ? `&gid=${parts.gid}` : "";
   const urls = [
-    `https://docs.google.com/spreadsheets/d/${parts.id}/export?format=csv&gid=${parts.gid}&t=${t}`,
-    `https://docs.google.com/spreadsheets/d/${parts.id}/gviz/tq?tqx=out:csv&headers=0&gid=${parts.gid}&t=${t}`
+    `https://docs.google.com/spreadsheets/d/${parts.id}/export?format=csv${gid}&t=${t}`,
+    `https://docs.google.com/spreadsheets/d/${parts.id}/gviz/tq?tqx=out:csv&headers=0${gid}&t=${t}`
   ];
   const errs = [];
   for (const u of urls) {
@@ -465,7 +473,7 @@ function loadViaScript(parts) {
       resolve(d.table.rows.map(r => (r.c || []).map(c => c ? String(c.f != null ? c.f : (c.v != null ? c.v : "")).trim() : "")));
     };
     s.onerror = () => { done(); reject(new Error("backup blocked")); };
-    s.src = `https://docs.google.com/spreadsheets/d/${parts.id}/gviz/tq?tqx=out:json;responseHandler:${cb}&headers=0&gid=${parts.gid}&t=${Date.now()}`;
+    s.src = `https://docs.google.com/spreadsheets/d/${parts.id}/gviz/tq?tqx=out:json;responseHandler:${cb}&headers=0${parts.gid ? "&gid=" + parts.gid : ""}&t=${Date.now()}`;
     document.head.appendChild(s);
   });
 }
@@ -478,11 +486,11 @@ const $ = id => document.getElementById(id);
 
 function load() { try { return { custom: [], ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (e) { return { custom: [] }; } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch (e) {} }
-const divisions = () => [...(configDivs ? configDivs.divs : DIVISIONS), ...(settings.custom || [])];
+const divisions = () => [...baseDivisions(), ...(settings.custom || [])];
 const typeOf = d => d.type || "pools";
 let configDivs = loadCachedConfig();
 let configWarning = "";
-function loadCachedConfig() { try { const c = JSON.parse(localStorage.getItem(KEY + "-config")); return c && c.divs && c.divs.length ? c : null; } catch (e) { return null; } }
+function loadCachedConfig() { try { const c = JSON.parse(localStorage.getItem(KEY + "-config")); return c && (c.rows || c.divs || []).length ? c : null; } catch (e) { return null; } }
 
 function parseConfig(rows) {
   const low = v => String(v || "").toLowerCase();
@@ -494,37 +502,220 @@ function parseConfig(rows) {
         cGender = h.findIndex(v => /^(gender|boys or girls|boys\/girls)$/.test(v)), cAge = h.findIndex(v => /^(age|age group)$/.test(v)),
         cLevel = h.findIndex(v => /^(level|div|division level)$/.test(v)), cBracket = h.findIndex(v => /^(bracket|bracket level)$/.test(v));
   const opt = (r, c) => c >= 0 ? (r[c] || "").trim() : "";
-  const divs = [], skipped = []; let event = "";
+  // rows keeps every entry, hidden ones and ones without a link too, so they can
+  // hide, rename or retag divisions found on the NCHVC index
+  const entries = []; let event = "";
   rows.slice(hr + 1).forEach(r => {
     const stage = low(r[cStage]), name = (r[cName] || "").trim(), link = (r[cLink] || "").trim();
     if (/^event/.test(stage)) { event = name; return; }
     if (!stage && !name && !link) return;
-    if (cShow >= 0 && /^(no|n|false|hide|hidden)$/.test(low(r[cShow]))) return;
     const type = /bracket/.test(stage) ? "brackets" : /pool/.test(stage) ? "pools" : null;
     if (!type || !name) return;
-    if (!linkParts(link)) { skipped.push(name); return; }
     const g = opt(r, cGender);
-    divs.push({ id: type + ":" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), type, name, url: link,
+    entries.push({ id: divId(type, name), type, name, url: link,
+      hidden: cShow >= 0 && /^(no|n|false|hide|hidden)$/.test(low(r[cShow])),
       gender: /^b/i.test(g) ? "Boys" : /^g/i.test(g) ? "Girls" : g, age: opt(r, cAge).toUpperCase(), level: opt(r, cLevel), bracket: opt(r, cBracket) });
   });
-  return { divs, event, skipped };
+  const visible = entries.filter(e => !e.hidden);
+  return { divs: visible.filter(e => linkParts(e.url)), rows: entries, event, skipped: visible.filter(e => !linkParts(e.url)).map(e => e.name) };
 }
+const divId = (type, name) => type + ":" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+const noTags = (k, v) => k === "_tags" ? undefined : v;
 
 async function loadConfig() {
   const parts = linkParts(CONFIG_SHEET);
   if (!parts) return;
   try {
     const c = parseConfig(await fetchRows(parts));
-    configWarning = c.skipped.length ? `The divisions sheet has a link that isn't a full Google Sheets address for: ${c.skipped.join(", ")}. Paste the whole address as plain text in the Link column.` : "";
-    if (c.divs.length) {
-      configDivs = c;
-      try { localStorage.setItem(KEY + "-config", JSON.stringify(c, (k, v) => k === "_tags" ? undefined : v)); } catch (e) {}
+    configWarning = "";
+    if (c.rows.length) {
+      configDivs = c; listCache = null;
+      try { localStorage.setItem(KEY + "-config", JSON.stringify(c, noTags)); } catch (e) {}
     }
   } catch (e) {
-    configWarning = configDivs ? "" : "Couldn't read the divisions sheet, so the built-in list is showing.";
+    configWarning = configDivs || discovered ? "" : "Couldn't read the divisions sheet, so the built-in list is showing.";
   }
 }
-const eventName = () => (configDivs && configDivs.event) || "2025 NCHVC";
+const eventName = () => (configDivs && configDivs.event) || (discovered && discovered.event) || "2025 NCHVC";
+
+/* ---------------- division list: NCHVC index + divisions sheet ---------------- */
+let discovered = loadDiscovered();     // { at, divs, failed, event } from the NCHVC index
+let listCache = null, mergeWarning = "", discoveryWarning = "", discoveryError = "", discovery = null;
+function loadDiscovered() { try { const c = JSON.parse(localStorage.getItem(KEY + "-discovered")); return c && c.divs && c.divs.length ? c : null; } catch (e) { return null; } }
+const baseDivisions = () => listCache || (listCache = buildList());
+
+/* Rows in the divisions sheet override discovered entries that have the same tab
+   link (to rename them) or the same name: Show = No hides one, filled-in Gender,
+   Age, Level or Bracket fix its tags, and rows matching nothing are added. */
+const sameTab = (a, b) => { const x = linkParts(a), y = linkParts(b); return !!(x && y && x.id === y.id && x.gid === y.gid); };
+function buildList() {
+  const rows = configDivs ? configDivs.rows || configDivs.divs : [];
+  const skipped = configDivs ? configDivs.skipped || [] : [];
+  mergeWarning = "";
+  if (!discovered) {
+    // With an API key, rows without a link are overrides for the index, not mistakes
+    if (skipped.length && !API_KEY) mergeWarning = linkWarning(skipped);
+    return configDivs && configDivs.divs.length ? configDivs.divs.filter((d, i, all) => all.findIndex(x => x.id === d.id || sameTab(x.url, d.url)) === i) : DIVISIONS;
+  }
+  const used = new Set(), out = [];
+  discovered.divs.forEach(d => {
+    let i = rows.findIndex((r, k) => !used.has(k) && r.url && sameTab(r.url, d.url));
+    if (i < 0) i = rows.findIndex((r, k) => !used.has(k) && r.type === d.type && r.name.toLowerCase() === d.name.toLowerCase());
+    if (i < 0) return out.push({ ...d });
+    used.add(i);
+    const r = rows[i];
+    if (r.hidden) return;
+    out.push({ ...d, id: divId(r.type, r.name), type: r.type, name: r.name, url: linkParts(r.url) ? r.url : d.url,
+      gender: r.gender || "", age: r.age || "", level: r.level || "", bracket: r.bracket || "" });
+  });
+  const unlinked = [];
+  rows.forEach((r, k) => {
+    if (used.has(k) || r.hidden) return;
+    if (!linkParts(r.url)) return unlinked.push(r.name);
+    // A second row for a tab or name already on the list adds nothing
+    if (!out.some(d => d.id === divId(r.type, r.name) || sameTab(d.url, r.url))) out.push({ ...r });
+  });
+  if (unlinked.length) mergeWarning = linkWarning(unlinked);
+  return out;
+}
+const linkWarning = names => `The divisions sheet has a row without a full Google Sheets address for: ${names.join(", ")}. Paste the whole address as plain text in the Link column, or use the exact name of a division from the NCHVC index.`;
+
+async function sheetsApi(id, fields) {
+  // The key is restricted to this site's address, so send the full page URL as the
+  // referrer (browsers send only the domain on cross-site requests by default)
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=${encodeURIComponent(fields)}&key=${encodeURIComponent(API_KEY)}`,
+    { referrerPolicy: "no-referrer-when-downgrade", cache: "no-store" });
+  if (!res.ok) {
+    let msg = ""; try { msg = (await res.json()).error.message; } catch (e) {}
+    const err = new Error(msg || "HTTP " + res.status); err.status = res.status; throw err;
+  }
+  return res.json();
+}
+
+// Runs fn over items, a few at a time; a 429 from any of them stops the rest
+async function eachLimit(items, n, fn) {
+  const out = new Array(items.length); let next = 0, stop = null;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (next < items.length && !stop) {
+      const i = next++;
+      try { out[i] = await fn(items[i], i); } catch (e) { if (e.status === 429) stop = e; else out[i] = { error: e }; }
+    }
+  }));
+  if (stop) throw stop;
+  return out;
+}
+
+/* Division links on the index: "G18u D1", "GJV", "B16u"... Links can be a cell
+   hyperlink, a rich-text link, or a HYPERLINK() formula. */
+function indexLinks(data, gid) {
+  const sheets = data.sheets || [];
+  const tab = sheets.find(x => String(x.properties.sheetId) === gid) || sheets[0];
+  const out = [], seen = new Set();
+  ((tab && tab.data) || []).forEach(g => (g.rowData || []).forEach(row => (row.values || []).forEach(v => {
+    const label = String(v.formattedValue || "").trim();
+    if (!/^[GB]\s*(\d{1,2}\s*u|JV)\b/i.test(label)) return;
+    const formula = ((v.userEnteredValue && v.userEnteredValue.formulaValue) || "").match(/HYPERLINK\(\s*"([^"]+)"/i);
+    const urls = [v.hyperlink, ...(v.textFormatRuns || []).map(r => r.format && r.format.link && r.format.link.uri), formula && formula[1]];
+    const id = urls.map(u => (String(u || "").match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]{20,})/) || [])[1]).find(Boolean);
+    if (id && !seen.has(id)) { seen.add(id); out.push({ label, id }); }
+  })));
+  return out;
+}
+
+// "Girls 18u D1/D2 Pools - 2025 NCHVC" -> "Girls 18U D1/D2"; the index label ("G18u D1") if the title doesn't say
+function bookName(label, title) {
+  let t = String(title || "").replace(/\s*-\s*\d{4}\s+NCHVC.*$/i, "").trim();
+  if (!/^(girls|boys)\b/i.test(t)) t = label.replace(/^G\s*/i, "Girls ").replace(/^B\s*/i, "Boys ");
+  return t.replace(/\bpools?\b|&\s*qualifier/gi, "").replace(/(\d+)\s*u\b/gi, "$1U").replace(/\s+/g, " ").trim();
+}
+// "D1 Gold Ball Brackets" in "Girls 18U D1" -> "Girls 18U D1 Gold Ball"; a "Pools" tab is just the division name
+function tabName(base, title, type) {
+  let t = title.trim().replace(/^(D\d)\s+/i, (m, lv) => new RegExp("\\b" + lv + "\\b", "i").test(base) ? "" : m);
+  if (type === "pools") return /^pools?$/i.test(t) ? base : `${base} ${t}`;
+  return `${base} ${t.replace(/\s*brackets?$/i, "")}`.trim();
+}
+const SKIP_TABS = /^(home|ref|referees?|instructions?)$/i;
+
+// A tab counts only if the parser finds real content in it, not just time cells
+function tabReadable(d, rows) {
+  if (d.type === "pools") return parsePools(rows).pools.some(p => p.teams.length >= 2);
+  return parseBrackets(rows).brackets.some(g => g.key !== "b0" && g.matches.some(m => m.top || m.bottom));
+}
+
+async function discoverDivisions(progress) {
+  const ip = linkParts(INDEX_SHEET);
+  const index = await sheetsApi(ip.id, "sheets(properties(sheetId,title),data(rowData(values(formattedValue,hyperlink,textFormatRuns(format(link(uri))),userEnteredValue(formulaValue)))))");
+  const links = indexLinks(index, ip.gid);
+  if (!links.length) throw new Error("no division links on the index");
+  const failed = [], candidates = []; let event = "";
+  // Tab lists: one read per division spreadsheet (the API can't batch across spreadsheets)
+  const books = await eachLimit(links, 4, l => sheetsApi(l.id, "properties(title),sheets(properties(sheetId,title,hidden))"));
+  books.forEach((b, i) => {
+    const l = links[i];
+    if (!b || b.error) return failed.push({ name: l.label, tab: "", reason: "couldn't list its tabs" + (b && b.error ? ` (${b.error.message})` : "") });
+    const title = (b.properties && b.properties.title) || "";
+    event = event || (title.match(/\b(\d{4}\s+NCHVC)\b/i) || [])[1] || "";
+    const base = bookName(l.label, title);
+    (b.sheets || []).forEach(({ properties: p }) => {
+      if (p.hidden || SKIP_TABS.test(p.title.trim())) return;
+      const type = /pool/i.test(p.title) ? "pools" : "brackets";
+      const name = tabName(base, p.title, type);
+      candidates.push({ id: divId(type, name), type, name, url: `https://docs.google.com/spreadsheets/d/${l.id}/edit#gid=${p.sheetId}`, tab: p.title, book: l.label });
+    });
+  });
+  // Confirm each tab through the public CSV feed, the same path scores load from (no API quota)
+  let done = 0;
+  const ok = await eachLimit(candidates, 4, async d => {
+    try { return tabReadable(d, await fetchRows(linkParts(d.url))) || { error: new Error("no " + (d.type === "pools" ? "pools" : "brackets") + " found") }; }
+    catch (e) { return { error: new Error("couldn't load it") }; }
+    finally { progress && progress(++done, candidates.length); }
+  });
+  const divs = [];
+  candidates.forEach((d, i) => {
+    if (ok[i] === true) divs.push({ id: d.id, type: d.type, name: d.name, url: d.url });
+    else failed.push({ name: d.name, tab: d.tab, book: d.book, url: d.url, reason: ok[i].error.message });
+  });
+  return { at: Date.now(), divs, failed, event, books: links.length };
+}
+
+// Discovery runs at most every DISCOVERY_HOURS per browser, never on score refreshes
+function discoveryDue() {
+  if (!API_KEY || !linkParts(INDEX_SHEET)) return false;
+  return !discovered || Date.now() - discovered.at > DISCOVERY_HOURS * 3600e3;
+}
+function backoffLeft() { try { const b = JSON.parse(localStorage.getItem(KEY + "-backoff")) || {}; return Math.max(0, (b.until || 0) - Date.now()); } catch (e) { return 0; } }
+function setBackoff(hitLimit) {
+  let b = {}; try { b = JSON.parse(localStorage.getItem(KEY + "-backoff")) || {}; } catch (e) {}
+  // Google's "too many requests": wait 10 minutes, doubling each time up to 2 hours
+  const wait = hitLimit ? Math.min((b.wait || 5 * 60e3) * 2, 2 * 3600e3) : 10 * 60e3;
+  try { localStorage.setItem(KEY + "-backoff", JSON.stringify({ until: Date.now() + wait, wait })); } catch (e) {}
+}
+
+async function updateDivisionList(force) {
+  if (discovery || !API_KEY) return;
+  if (!force && !discoveryDue()) return;
+  if (backoffLeft()) return;
+  // Another open tab of the viewer may already be running it
+  try { const lock = +localStorage.getItem(KEY + "-discovery-lock") || 0; if (!force && Date.now() - lock < 3 * 60e3) return; localStorage.setItem(KEY + "-discovery-lock", String(Date.now())); } catch (e) {}
+  discovery = { done: 0, total: 0 };
+  if (setup) renderSetup();
+  try {
+    const found = await discoverDivisions((done, total) => { discovery = { done, total }; if (setup) renderListStatus(); });
+    if (!found.divs.length) throw new Error("none of the index's tabs could be read");
+    discovered = found; listCache = null; discoveryWarning = "";
+    try { localStorage.setItem(KEY + "-discovered", JSON.stringify(found)); localStorage.removeItem(KEY + "-backoff"); } catch (e) {}
+  } catch (e) {
+    setBackoff(e.status === 429);
+    const from = configDivs && configDivs.divs.length ? "your divisions sheet" : "the built-in list";
+    discoveryWarning = discovered ? "" : `Couldn't build the division list from the NCHVC index right now, so ${from} is showing.`;
+    discoveryError = e.status === 429 ? "Google asked us to slow down. The viewer will try again later." : e.message;
+  }
+  discovery = null;
+  try { localStorage.removeItem(KEY + "-discovery-lock"); } catch (e) {}
+  render();
+  const s = slot(current().id);
+  if (!setup && current().id !== "__none" && !s.lastUpdated && !s.busy) refresh();
+}
 const currentStage = () => settings.stage || typeOf(divisions().find(d => d.id === settings.division) || divisions()[0] || {});
 /* Filter tags come from the divisions sheet's optional Gender, Age, Level and
    Bracket columns, or are read from the division name ("Girls 18U D1 Gold Ball"). */
@@ -542,7 +733,7 @@ function tagsOf(d) {
     (n.match(/\bDivision\s+(IV|I{1,3})\b/gi) || []).forEach(x => levels.push("D" + roman[x.split(/\s+/)[1].toUpperCase()]));
   }
   levels = [...new Set(levels)];
-  const bracket = d.bracket || (/gbss/i.test(n) ? "GBSS" : /gold/i.test(n) ? "Gold" : /silver/i.test(n) ? "Silver" : /bronze/i.test(n) ? "Bronze" : "");
+  const bracket = d.bracket || (/gbss/i.test(n) ? "GBSS" : /gold/i.test(n) ? "Gold" : /silver/i.test(n) ? "Silver" : /bronze/i.test(n) ? "Bronze" : /copper/i.test(n) ? "Copper" : /iron/i.test(n) ? "Iron" : "");
   return (d._tags = { gender, age, level: levels, bracket });
 }
 const FILTERS = [
@@ -562,7 +753,7 @@ function filterOptions(stage, key) {
   divisions().filter(d => typeOf(d) === stage && fits(d, f, key)).forEach(d => {
     const v = tagsOf(d)[key]; (Array.isArray(v) ? v : [v]).forEach(x => x && vals.add(x));
   });
-  const order = { gender: ["Girls", "Boys"], bracket: ["Gold", "Silver", "Bronze", "GBSS"] };
+  const order = { gender: ["Girls", "Boys"], bracket: ["Gold", "Silver", "Bronze", "Copper", "Iron", "GBSS"] };
   return [...vals].sort((a, b) => {
     if (key === "age") return (parseInt(b) || 0) - (parseInt(a) || 0) || a.localeCompare(b);
     const o = order[key]; if (o) return ((o.indexOf(a) + 1) || 99) - ((o.indexOf(b) + 1) || 99) || a.localeCompare(b);
@@ -656,6 +847,7 @@ function renderDivisions() {
     `<button type="button" class="add" id="addDiv" aria-pressed="${setup}">Add a division</button>`;
 }
 
+const notices = () => { baseDivisions(); return [discoveryWarning, configWarning, mergeWarning].filter(Boolean).map(w => `<div class="msg err"><p>${esc(w)}</p></div>`).join(""); };
 function render() {
   const d = current(), s = slot(d.id);
   document.title = d.name + (d.type === "brackets" ? " brackets" : " pools"); $("title").textContent = d.name;
@@ -665,13 +857,13 @@ function render() {
   if (d.id === "__none") {
     $("bar").hidden = true; $("status").textContent = "";
     $("eventLine").textContent = eventName();
-    $("main").innerHTML = `<div class="msg"><h2>No divisions match these filters</h2><p>Try a different combination, or clear the filters.</p>
+    $("main").innerHTML = notices() + `<div class="msg"><h2>No divisions match these filters</h2><p>Try a different combination, or clear the filters.</p>
       <p><button class="ghost" type="button" id="clearFilters2">Clear filters</button></p></div>`;
     $("clearFilters2").addEventListener("click", clearFilters);
     return;
   }
 
-  let html = configWarning ? `<div class="msg err"><p>${esc(configWarning)}</p></div>` : "";
+  let html = notices();
   if (s.error) {
     const inPreview = location.protocol === "blob:" || /claude|anthropic/.test(location.hostname);
     html += `<div class="msg err"><h2>${s.error === "nopools" ? `Couldn't find any ${d.type === "brackets" ? "brackets" : "pools"} on that tab` : "Couldn't reach the sheet"}</h2>
@@ -789,9 +981,31 @@ function renderBrackets(s, html) {
   flashKeys = new Set();
 }
 
+function renderListStatus() {
+  const box = $("listStatus"); if (!box) return;
+  const when = t => new Date(t).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+  const wait = Math.ceil(backoffLeft() / 60e3);
+  let body;
+  if (!API_KEY) body = `<p>The division list comes from the divisions sheet. Add a Google Sheets API key to config.js (sheetsApiKey) to build it from the NCHVC index automatically.</p>`;
+  else {
+    const f = (discovered && discovered.failed) || [];
+    body = `<p>${discovered ? `Built from the NCHVC index ${esc(when(discovered.at))}: ${discovered.divs.length} tabs from ${discovered.books || "the"} division spreadsheets. It updates itself every ${DISCOVERY_HOURS} hours.` : "Not built from the NCHVC index yet."}
+        Your divisions sheet can rename or hide any of them (Show = No) and add others.</p>
+      ${discovery ? `<p><strong>Updating…</strong> ${discovery.total ? `checked ${discovery.done} of ${discovery.total} tabs` : "reading the index"}</p>`
+        : `<p><button class="ghost" type="button" id="updateList" ${wait ? "disabled" : ""}>Update division list</button>
+           ${wait ? ` Google asked us to slow down, so this is paused for about ${wait} minute${wait === 1 ? "" : "s"}.` : ""}</p>`}
+      ${discoveryError && !discovery ? `<p style="color:var(--bad)">Last update failed: ${esc(discoveryError)}</p>` : ""}
+      ${f.length ? `<details><summary>${f.length} tab${f.length === 1 ? "" : "s"} couldn't be read (their layout isn't supported yet)</summary><ul>${
+        f.map(x => `<li>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>` : esc(x.name)}${x.tab ? ` (${esc(x.book)}, tab “${esc(x.tab)}”)` : ""}: ${esc(x.reason)}</li>`).join("")}</ul></details>` : ""}`;
+  }
+  box.innerHTML = `<h2>Division list</h2>${body}`;
+  const b = $("updateList"); if (b) b.addEventListener("click", () => updateDivisionList(true));
+}
+
 function renderSetup() {
   const custom = settings.custom || [];
   $("main").innerHTML = `
+    <div class="msg" id="listStatus"></div>
     <div class="msg"><h2>Add a division</h2>
       <p>Divisions added here are saved only on this device. To add one for everyone, add a row to the divisions sheet instead.</p>
       <p>Open that division's pool or bracket tab in Google Sheets and copy the link from the address bar. It should include <strong>#gid=</strong> so the viewer reads the right tab.</p></div>
@@ -808,6 +1022,7 @@ function renderSetup() {
       ${custom.length ? `<div><p style="font-weight:600;margin:8px 0">Divisions you've added</p><ul class="custom-list">${
         custom.map(c => `<li><span>${esc(c.name)}</span><button class="ghost" type="button" data-remove="${esc(c.id)}">Remove</button></li>`).join("")}</ul></div>` : ""}
     </form>`;
+  renderListStatus();
   $("setupForm").addEventListener("submit", e => {
     e.preventDefault();
     const f = new FormData(e.target);
@@ -885,7 +1100,7 @@ function setAuto(on) {
 setInterval(updateStatus, 30000);
 if (settings.auto) { $("autoChk").checked = true; setAuto(true); }
 render();
-(async () => { await loadConfig(); render(); refresh(); })();
+(async () => { await loadConfig(); render(); refresh(); updateDivisionList(false); })();
 </script>
 </body>
 </html>
