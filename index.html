@@ -51,11 +51,11 @@
   .divs .add { border-style: dashed; color: #B8C3D9; }
   .custom-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   .custom-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
-  .stages { max-width: 1100px; margin: 18px auto 0; display: inline-flex; background: rgba(255,255,255,.1); border-radius: 12px; padding: 4px; gap: 4px; }
-  .stages-wrap { max-width: 1100px; margin: 0 auto; }
+  .filterbar { max-width: 1100px; margin: 18px auto 0; display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: flex-end; }
+  .stages { display: inline-flex; background: rgba(255,255,255,.1); border-radius: 12px; padding: 4px; gap: 4px; }
   .stages button { font: 700 20px "Barlow Condensed", sans-serif; padding: 8px 20px; border-radius: 9px; border: 0; background: transparent; color: #D5DCEA; cursor: pointer; }
   .stages button[aria-pressed="true"] { background: var(--gold); color: var(--navy); }
-  .filters { max-width: 1100px; margin: 14px auto 0; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
   .filters label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #B8C3D9; }
   .filters select { font: 500 15px Barlow, sans-serif; padding: 8px 10px; border-radius: 8px; border: 0; min-width: 118px; background: #fff; color: var(--ink); }
   .filters .linkish { padding: 8px 4px; }
@@ -163,11 +163,13 @@
       <label class="auto"><input type="checkbox" id="autoChk"> Auto-refresh every minute</label>
     </div>
   </div>
-  <div class="stages-wrap"><div class="stages" id="stages" role="group" aria-label="Tournament stage">
-    <button type="button" data-stage="pools">Pool play</button>
-    <button type="button" data-stage="brackets">Bracket play</button>
-  </div></div>
-  <div class="filters" id="filters" aria-label="Filters"></div>
+  <div class="filterbar">
+    <div class="filters" id="filters" aria-label="Filters"></div>
+    <div class="stages" id="stages" role="group" aria-label="Tournament stage">
+      <button type="button" data-stage="pools">Pool play</button>
+      <button type="button" data-stage="brackets">Bracket play</button>
+    </div>
+  </div>
   <div class="divs" id="divs" aria-label="Divisions"></div>
 </header>
 <div class="bar" id="bar" hidden>
