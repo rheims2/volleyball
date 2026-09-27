@@ -55,6 +55,10 @@
   .stages-wrap { max-width: 1100px; margin: 0 auto; }
   .stages button { font: 700 20px "Barlow Condensed", sans-serif; padding: 8px 20px; border-radius: 9px; border: 0; background: transparent; color: #D5DCEA; cursor: pointer; }
   .stages button[aria-pressed="true"] { background: var(--gold); color: var(--navy); }
+  .filters { max-width: 1100px; margin: 14px auto 0; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+  .filters label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #B8C3D9; }
+  .filters select { font: 500 15px Barlow, sans-serif; padding: 8px 10px; border-radius: 8px; border: 0; min-width: 118px; background: #fff; color: var(--ink); }
+  .filters .linkish { padding: 8px 4px; }
   .divgroup { display: flex; gap: 8px; align-items: center; }
   .divgroup + .divgroup { margin-left: 10px; padding-left: 14px; border-left: 1px solid rgba(255,255,255,.2); }
   .divlabel { color: #B8C3D9; font-size: 14px; white-space: nowrap; }
@@ -163,6 +167,7 @@
     <button type="button" data-stage="pools">Pool play</button>
     <button type="button" data-stage="brackets">Bracket play</button>
   </div></div>
+  <div class="filters" id="filters" aria-label="Filters"></div>
   <div class="divs" id="divs" aria-label="Divisions"></div>
 </header>
 <div class="bar" id="bar" hidden>
@@ -465,7 +470,10 @@ function parseConfig(rows) {
   if (hr < 0) throw new Error("Couldn't find the Stage and Link column headings");
   const h = rows[hr].map(low);
   const cStage = h.indexOf("stage"), cName = h.findIndex(v => /^(division|name)$/.test(v)),
-        cLink = h.findIndex(v => /^(link|url)$/.test(v)), cShow = h.indexOf("show");
+        cLink = h.findIndex(v => /^(link|url)$/.test(v)), cShow = h.indexOf("show"),
+        cGender = h.findIndex(v => /^(gender|boys or girls|boys\/girls)$/.test(v)), cAge = h.findIndex(v => /^(age|age group)$/.test(v)),
+        cLevel = h.findIndex(v => /^(level|div|division level)$/.test(v)), cBracket = h.findIndex(v => /^(bracket|bracket level)$/.test(v));
+  const opt = (r, c) => c >= 0 ? (r[c] || "").trim() : "";
   const divs = [], skipped = []; let event = "";
   rows.slice(hr + 1).forEach(r => {
     const stage = low(r[cStage]), name = (r[cName] || "").trim(), link = (r[cLink] || "").trim();
@@ -475,7 +483,9 @@ function parseConfig(rows) {
     const type = /bracket/.test(stage) ? "brackets" : /pool/.test(stage) ? "pools" : null;
     if (!type || !name) return;
     if (!linkParts(link)) { skipped.push(name); return; }
-    divs.push({ id: type + ":" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), type, name, url: link });
+    const g = opt(r, cGender);
+    divs.push({ id: type + ":" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), type, name, url: link,
+      gender: /^b/i.test(g) ? "Boys" : /^g/i.test(g) ? "Girls" : g, age: opt(r, cAge).toUpperCase(), level: opt(r, cLevel), bracket: opt(r, cBracket) });
   });
   return { divs, event, skipped };
 }
@@ -488,18 +498,62 @@ async function loadConfig() {
     configWarning = c.skipped.length ? `The divisions sheet has a link that isn't a full Google Sheets address for: ${c.skipped.join(", ")}. Paste the whole address as plain text in the Link column.` : "";
     if (c.divs.length) {
       configDivs = c;
-      try { localStorage.setItem(KEY + "-config", JSON.stringify(c)); } catch (e) {}
+      try { localStorage.setItem(KEY + "-config", JSON.stringify(c, (k, v) => k === "_tags" ? undefined : v)); } catch (e) {}
     }
   } catch (e) {
     configWarning = configDivs ? "" : "Couldn't read the divisions sheet, so the built-in list is showing.";
   }
 }
 const eventName = () => (configDivs && configDivs.event) || "2025 NCHVC";
-const currentStage = () => settings.stage || typeOf(current());
+const currentStage = () => settings.stage || typeOf(divisions().find(d => d.id === settings.division) || divisions()[0] || {});
+/* Filter tags come from the divisions sheet's optional Gender, Age, Level and
+   Bracket columns, or are read from the division name ("Girls 18U D1 Gold Ball"). */
+function tagsOf(d) {
+  if (d._tags) return d._tags;
+  const n = " " + d.name + " ";
+  const gender = d.gender || (/\b(girls?|women)\b|\bG(?=\d{1,2}\s*u\b|JV\b)/i.test(n) ? "Girls" : /\b(boys?|men)\b|\bB(?=\d{1,2}\s*u\b|JV\b)/i.test(n) ? "Boys" : "");
+  const ageM = n.match(/(\d{1,2})\s*u\b/i);
+  const age = d.age || (ageM ? ageM[1] + "U" : /JV\b/i.test(n) ? "JV" : "");
+  const roman = { I: 1, II: 2, III: 3, IV: 4 };
+  let levels = d.level ? String(d.level).split(/[\/,&]| and /i).map(x => x.trim()).filter(Boolean)
+    .map(x => { const m = x.match(/(\d)|\b(IV|I{1,3})\b/i); return m ? "D" + (m[1] || roman[m[2].toUpperCase()]) : x; }) : [];
+  if (!levels.length) {
+    (n.match(/\bD\s*[1-4]\b|\/\s*D?[1-4]\b/gi) || []).forEach(x => levels.push("D" + x.replace(/\D/g, "")));
+    (n.match(/\bDivision\s+(IV|I{1,3})\b/gi) || []).forEach(x => levels.push("D" + roman[x.split(/\s+/)[1].toUpperCase()]));
+  }
+  levels = [...new Set(levels)];
+  const bracket = d.bracket || (/gbss/i.test(n) ? "GBSS" : /gold/i.test(n) ? "Gold" : /silver/i.test(n) ? "Silver" : /bronze/i.test(n) ? "Bronze" : "");
+  return (d._tags = { gender, age, level: levels, bracket });
+}
+const FILTERS = [
+  { key: "gender", label: "Boys or girls", stages: ["pools", "brackets"] },
+  { key: "age", label: "Age group", stages: ["pools", "brackets"] },
+  { key: "level", label: "Division", stages: ["pools", "brackets"] },
+  { key: "bracket", label: "Bracket", stages: ["brackets"] }
+];
+const filtersFor = stage => (settings.filters && settings.filters[stage]) || {};
+function fits(d, f, skip) {
+  const t = tagsOf(d);
+  return Object.keys(f).every(k => k === skip || !f[k] || (k === "level" ? t.level.includes(f[k]) : t[k] === f[k]));
+}
+function filterOptions(stage, key) {
+  const f = filtersFor(stage);
+  const vals = new Set();
+  divisions().filter(d => typeOf(d) === stage && fits(d, f, key)).forEach(d => {
+    const v = tagsOf(d)[key]; (Array.isArray(v) ? v : [v]).forEach(x => x && vals.add(x));
+  });
+  const order = { gender: ["Girls", "Boys"], bracket: ["Gold", "Silver", "Bronze", "GBSS"] };
+  return [...vals].sort((a, b) => {
+    if (key === "age") return (parseInt(b) || 0) - (parseInt(a) || 0) || a.localeCompare(b);
+    const o = order[key]; if (o) return ((o.indexOf(a) + 1) || 99) - ((o.indexOf(b) + 1) || 99) || a.localeCompare(b);
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+}
+const visibleDivisions = stage => divisions().filter(d => typeOf(d) === stage && fits(d, filtersFor(stage)));
 const current = () => {
-  const stage = settings.stage;
-  const pick = divisions().find(d => d.id === settings.division && (!stage || typeOf(d) === stage));
-  return pick || divisions().find(d => !stage || typeOf(d) === stage) || divisions()[0];
+  const stage = settings.stage || typeOf(divisions().find(d => d.id === settings.division) || divisions()[0] || {});
+  const list = visibleDivisions(stage);
+  return list.find(d => d.id === settings.division) || list[0] || { id: "__none", name: "No matching divisions", type: stage, url: "" };
 };
 function slot(id) { return store[id] || (store[id] = { model: null, prevKeys: null, lastUpdated: null, error: null, errorDetail: "", active: null, busy: false }); }
 
@@ -519,6 +573,7 @@ function snapshot(m) {
 
 async function refresh() {
   const d = current(), s = slot(d.id);
+  if (d.id === "__none") return;
   const parts = linkParts(d.url);
   if (!parts) { s.error = "fetch"; s.errorDetail = "The link for this division isn't a Google Sheets link."; render(); return; }
   if (s.busy) return;
@@ -569,7 +624,14 @@ function renderDivisions() {
   const stage = currentStage();
   document.querySelectorAll("#stages button").forEach(b => b.setAttribute("aria-pressed", b.dataset.stage === stage));
   const btn = d => `<button type="button" data-div="${esc(d.id)}" aria-pressed="${!setup && d.id === cur}">${esc(d.name)}</button>`;
-  const list = divisions().filter(d => typeOf(d) === stage);
+  const f = filtersFor(stage);
+  const active = FILTERS.filter(x => x.stages.includes(stage));
+  $("filters").innerHTML = active.map(x => {
+    const opts = filterOptions(stage, x.key);
+    return `<label>${esc(x.label)}<select data-filter="${x.key}"><option value="">All</option>${
+      opts.map(v => `<option ${v === f[x.key] ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></label>`;
+  }).join("") + (active.some(x => f[x.key]) ? `<button type="button" class="linkish" id="clearFilters">Clear filters</button>` : "");
+  const list = visibleDivisions(stage);
   $("divs").innerHTML = list.map(btn).join("") +
     `<button type="button" class="add" id="addDiv" aria-pressed="${setup}">Add a division</button>`;
 }
@@ -580,6 +642,14 @@ function render() {
   $("eventLine").textContent = eventName() + (d.type === "brackets" ? " bracket play" : " pool play");
   renderDivisions(); updateStatus(); busy(s.busy);
   if (setup) { $("bar").hidden = true; return renderSetup(); }
+  if (d.id === "__none") {
+    $("bar").hidden = true; $("status").textContent = "";
+    $("eventLine").textContent = eventName();
+    $("main").innerHTML = `<div class="msg"><h2>No divisions match these filters</h2><p>Try a different combination, or clear the filters.</p>
+      <p><button class="ghost" type="button" id="clearFilters2">Clear filters</button></p></div>`;
+    $("clearFilters2").addEventListener("click", clearFilters);
+    return;
+  }
 
   let html = configWarning ? `<div class="msg err"><p>${esc(configWarning)}</p></div>` : "";
   if (s.error) {
@@ -741,12 +811,30 @@ $("stages").addEventListener("click", e => {
   settings.lastByStage = { ...(settings.lastByStage || {}), [currentStage()]: current().id };
   settings.stage = b.dataset.stage;
   const remembered = (settings.lastByStage || {})[settings.stage];
-  const options = divisions().filter(d => typeOf(d) === settings.stage);
+  const options = visibleDivisions(settings.stage);
   settings.division = (options.find(d => d.id === remembered) || options[0] || {}).id;
   setup = false; flashKeys = new Set(); save(); render();
   const s = slot(current().id);
   if (!s.lastUpdated || Date.now() - s.lastUpdated > 30000) refresh();
 });
+function clearFilters() {
+  settings.filters = { ...(settings.filters || {}), [currentStage()]: {} };
+  save(); afterFilterChange();
+}
+function afterFilterChange() {
+  flashKeys = new Set(); render();
+  const d = current(); if (d.id === "__none") return;
+  settings.division = d.id; save();
+  const s = slot(d.id);
+  if (!s.lastUpdated || Date.now() - s.lastUpdated > 30000) refresh();
+}
+$("filters").addEventListener("change", e => {
+  const sel = e.target.closest("select[data-filter]"); if (!sel) return;
+  const stage = currentStage();
+  settings.filters = { ...(settings.filters || {}), [stage]: { ...filtersFor(stage), [sel.dataset.filter]: sel.value } };
+  save(); afterFilterChange();
+});
+$("filters").addEventListener("click", e => { if (e.target.closest("#clearFilters")) clearFilters(); });
 $("divs").addEventListener("click", e => {
   if (e.target.closest("#addDiv")) { setup = true; render(); return; }
   const b = e.target.closest("button[data-div]"); if (!b) return;
