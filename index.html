@@ -51,6 +51,26 @@
   .divs .add { border-style: dashed; color: #B8C3D9; }
   .custom-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   .custom-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+  .stages { max-width: 1100px; margin: 18px auto 0; display: inline-flex; background: rgba(255,255,255,.1); border-radius: 12px; padding: 4px; gap: 4px; }
+  .stages-wrap { max-width: 1100px; margin: 0 auto; }
+  .stages button { font: 700 20px "Barlow Condensed", sans-serif; padding: 8px 20px; border-radius: 9px; border: 0; background: transparent; color: #D5DCEA; cursor: pointer; }
+  .stages button[aria-pressed="true"] { background: var(--gold); color: var(--navy); }
+  .divgroup { display: flex; gap: 8px; align-items: center; }
+  .divgroup + .divgroup { margin-left: 10px; padding-left: 14px; border-left: 1px solid rgba(255,255,255,.2); }
+  .divlabel { color: #B8C3D9; font-size: 14px; white-space: nowrap; }
+  .champ { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; background: var(--navy); color: #fff; border-radius: 14px; padding: 14px 18px; margin-bottom: 18px; }
+  .champ .lbl { color: var(--gold); font-weight: 700; font-size: 15px; }
+  .champ .who { font: 700 26px/1.1 "Barlow Condensed", sans-serif; }
+  .champ .award { color: #B8C3D9; font-size: 15px; }
+  .bracket { display: grid; grid-template-columns: repeat(var(--rounds), minmax(0, 1fr)); gap: 18px; margin-bottom: 22px; }
+  .round { display: flex; flex-direction: column; gap: 14px; }
+  .round h3 { font: 700 20px "Barlow Condensed", sans-serif; margin: 0; }
+  .round .slots { display: flex; flex-direction: column; justify-content: space-around; gap: 14px; flex: 1; }
+  .bmatch { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .bmatch .seed { color: var(--muted); font-size: 13px; font-weight: 500; min-width: 38px; }
+  .bmatch .tbd .nm { color: var(--muted); font-style: italic; font-weight: 400; }
+  .bmatch .foot { color: var(--muted); font-size: 14px; margin-top: 8px; }
+  @media (max-width: 700px) { .bracket { grid-template-columns: 1fr; } .round .slots { justify-content: flex-start; } }
   .bar { background: var(--navy-2); padding: 10px clamp(14px, 4vw, 36px); position: sticky; top: 0; z-index: 2; }
   .bar-inner { max-width: 1100px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; }
   .pools { display: flex; gap: 6px; overflow-x: auto; }
@@ -130,7 +150,7 @@
 <header>
   <div class="top">
     <div>
-      <div class="event">2025 NCHVC pool play</div>
+      <div class="event" id="eventLine">2025 NCHVC pool play</div>
       <h1 id="title">Pool results</h1>
       <div class="status" id="status" aria-live="polite">Loading results…</div>
     </div>
@@ -139,6 +159,10 @@
       <label class="auto"><input type="checkbox" id="autoChk"> Auto-refresh every minute</label>
     </div>
   </div>
+  <div class="stages-wrap"><div class="stages" id="stages" role="group" aria-label="Tournament stage">
+    <button type="button" data-stage="pools">Pool play</button>
+    <button type="button" data-stage="brackets">Bracket play</button>
+  </div></div>
   <div class="divs" id="divs" aria-label="Divisions"></div>
 </header>
 <div class="bar" id="bar" hidden>
@@ -152,12 +176,20 @@
 <main id="main"></main>
 
 <script>
-/* Divisions shown in the menu. To add one permanently, copy a line and paste
-   the pool tab's link (it must include #gid=...). */
+/* ------------------------------------------------------------------
+   DIVISIONS SHEET: paste the link to your Google Sheet that lists the
+   divisions (columns: Stage, Division, Link, Show). Share it as
+   "Anyone with the link can view". Leave blank to use the list below.
+------------------------------------------------------------------- */
+const CONFIG_SHEET = "https://docs.google.com/spreadsheets/d/1RtIsoomRwrn-kGPWbcSdB3gV0ZGjVJMQCpMT71Y70DI/edit?usp=sharing";
+
+/* Built-in list, used when CONFIG_SHEET is blank or can't be reached.
+   type is "pools" for pool play tabs or "brackets" for bracket tabs. */
 const DIVISIONS = [
-  { id: "g18-d12", name: "Girls 18U D1/D2", url: "https://docs.google.com/spreadsheets/d/1lsy6Q5IjnCoR1BbJcePE1zkkt9jAKc7YEBFBCrjkcxM/edit?gid=1936931201#gid=1936931201" },
-  { id: "g18-d34", name: "Girls 18U D3/D4", url: "https://docs.google.com/spreadsheets/d/1V6l2tdGT82u8eNAnzpHv7eP11dUPNtRsUpSB-bMaT-k/edit?gid=1936931201#gid=1936931201" },
-  { id: "g16-d12", name: "Girls 16U D1/D2", url: "https://docs.google.com/spreadsheets/d/19aUPwTWsLqK9-DmQZtYWyjhF5Il1y1qgt7EOTFuIPtU/edit?gid=1936931201#gid=1936931201" }
+  { id: "g18-d12", type: "pools", name: "Girls 18U D1/D2", url: "https://docs.google.com/spreadsheets/d/1lsy6Q5IjnCoR1BbJcePE1zkkt9jAKc7YEBFBCrjkcxM/edit?gid=1936931201#gid=1936931201" },
+  { id: "g18-d34", type: "pools", name: "Girls 18U D3/D4", url: "https://docs.google.com/spreadsheets/d/1V6l2tdGT82u8eNAnzpHv7eP11dUPNtRsUpSB-bMaT-k/edit?gid=1936931201#gid=1936931201" },
+  { id: "g16-d12", type: "pools", name: "Girls 16U D1/D2", url: "https://docs.google.com/spreadsheets/d/19aUPwTWsLqK9-DmQZtYWyjhF5Il1y1qgt7EOTFuIPtU/edit?gid=1936931201#gid=1936931201" },
+  { id: "g18-d1-gold", type: "brackets", name: "Girls 18U D1 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit?gid=1394730142#gid=1394730142" }
 ];
 const AUTO_SECONDS = 60;
 const KEY = "nchvc-pool-viewer-v2";
@@ -266,7 +298,104 @@ function parsePools(rows) {
     pool.state = pool.complete ? "final" : pool.matches.some(m => m.played) ? "live" : "new";
     return pool;
   });
-  return { pools, note };
+  return { kind: "pools", pools, note };
+}
+
+/* ---------------- bracket parsing ---------------- */
+function parseBrackets(rows) {
+  const at = (r, c) => (rows[r] && rows[r][c]) || "";
+  const isTime = v => /^\d{1,2}:\d{2}\s*[ap]\.?\s*m\.?$/i.test(v);
+  const isScore = v => /^\d+\s*-\s*\d+(\s*,\s*\d+\s*-\s*\d+)*$/.test(v);
+  const isTeam = (r, c) => at(r, c) && /#\s*\d+\s*$/.test(at(r, c - 1));
+  const cells = [];
+  rows.forEach((row, r) => row.forEach((v, c) => { if (v) cells.push({ r, c, v }); }));
+
+  // Matches: anchored on the start-time cell, with day above and court + match name below
+  const matches = cells.filter(x => isTime(x.v)).map(({ r, c, v }) => {
+    const m = { r, c, time: v, day: at(r - 1, c), court: at(r + 1, c), name: at(r + 2, c), format: "", top: null, bottom: null, sets: [], winner: null, loserTo: "" };
+    for (let k = 1; k <= 7; k++) {
+      const rr = r - k; if (rr < 0 || isTime(at(rr, c))) break;
+      if (/best of \d/i.test(at(rr, c))) m.format = at(rr, c);
+      if (isTeam(rr, c)) { m.top = { team: at(rr, c), seed: at(rr, c - 1), r: rr }; break; }
+    }
+    for (let k = 3; k <= 8; k++) {
+      const rr = r + k; if (isTime(at(rr, c))) break;
+      if (isTeam(rr, c)) { m.bottom = { team: at(rr, c), seed: at(rr, c - 1), r: rr }; break; }
+    }
+    // The score is written under the team that won, from the winner's side
+    ["top", "bottom"].forEach(side => {
+      const t = m[side];
+      if (t && isScore(at(t.r + 1, c))) {
+        m.winner = side;
+        m.sets = at(t.r + 1, c).split(",").map(x => x.trim().split(/\s*-\s*/).map(Number));
+      }
+    });
+    return m;
+  });
+
+  const nearest = (list, r) => list.reduce((best, x) => !best || Math.abs(x.r - r) < Math.abs(best.r - r) ? x : best, null);
+
+  // One bracket per "... Champions" title
+  let groups = cells.filter(x => /champions?$/i.test(x.v) && x.v.length > 10).map(x => {
+    let champion = "";
+    for (let k = 1; k <= 3 && !champion; k++) champion = at(x.r + k, x.c);
+    const title = x.v.replace(/\s*champions?$/i, "");
+    const label = (title.match(/\b\d+A\b/) || [])[0] || title.split(" ")[0];
+    return { r: x.r, title, label, key: label + "@" + x.r, champion, matches: [], results: [], complete: false, award: "" };
+  });
+  if (!groups.length) groups = [{ r: 0, title: "Bracket", label: "Bracket", key: "b0", champion: "", matches: [], results: [], complete: false, award: "" }];
+  matches.forEach(m => nearest(groups, m.r).matches.push(m));
+
+  // Where each losing team goes ("Losing team to" / destination / team)
+  cells.filter(x => /^losing team to$/i.test(x.v)).forEach(x => {
+    const m = nearest(matches, x.r); if (m) m.loserTo = at(x.r + 1, x.c);
+  });
+  // Awards ("Winner:" / "Gold Ball & Medals")
+  cells.filter(x => /^winner:?$/i.test(x.v)).forEach(x => {
+    const row = rows[x.r]; const val = row.slice(x.c + 1).find(Boolean) || "";
+    if (val) nearest(groups, x.r).award = val;
+  });
+  // Results tables
+  cells.filter(x => /results$/i.test(x.v)).forEach(x => {
+    const g = nearest(groups, x.r);
+    g.complete = g.complete || (rows[x.r] || []).some(v => /^complete$/i.test(v));
+    for (let r = x.r + 1; r <= x.r + 2; r++) {
+      const row = rows[r] || []; const rc = row.indexOf("Rank"); if (rc < 0) continue;
+      const ac = row.findIndex(v => /^advancement$/i.test(v)), tc = row.findIndex(v => /^teams?$/i.test(v));
+      for (let rr = r + 1; rr < r + 12; rr++) {
+        const team = at(rr, tc); if (!team) break;
+        g.results.push({ rank: at(rr, rc), team, adv: ac >= 0 ? at(rr, ac) : "" });
+      }
+      break;
+    }
+  });
+
+  const roundNames = ["Final", "Semifinals", "Quarterfinals", "Round of 16", "Round of 32"];
+  groups.forEach(g => {
+    const cols = [...new Set(g.matches.map(m => m.c))].sort((a, b) => a - b);
+    g.rounds = cols.map((c, i) => ({
+      name: roundNames[cols.length - 1 - i] || `Round ${i + 1}`,
+      matches: g.matches.filter(m => m.c === c).sort((a, b) => a.r - b.r)
+    }));
+    // If a score wasn't found, a team that appears in the next round still counts as the winner
+    g.rounds.forEach((rd, i) => {
+      const later = g.rounds[i + 1]; if (!later) return;
+      const ahead = new Set(later.matches.flatMap(m => [m.top, m.bottom]).filter(Boolean).map(t => t.team));
+      rd.matches.forEach(m => {
+        if (m.winner) return;
+        if (m.top && ahead.has(m.top.team)) m.winner = "top";
+        else if (m.bottom && ahead.has(m.bottom.team)) m.winner = "bottom";
+      });
+    });
+    const fin = g.rounds.length ? g.rounds[g.rounds.length - 1].matches[0] : null;
+    if (!g.champion && fin && fin.winner) g.champion = fin[fin.winner].team;
+    g.state = g.complete || g.champion ? "final" : g.matches.some(m => m.winner) ? "live" : "new";
+    const firstOpen = g.rounds.flatMap(rd => rd.matches).find(m => !m.winner && m.top && m.bottom);
+    if (firstOpen) firstOpen.next = true;
+    g.teams = [...new Set(g.matches.flatMap(m => [m.top, m.bottom]).filter(Boolean).map(t => t.team))];
+  });
+  const note = (cells.find(x => /^text scores/i.test(x.v)) || {}).v || "";
+  return { kind: "brackets", brackets: groups.sort((a, b) => a.r - b.r), note };
 }
 
 /* ---------------- fetching ---------------- */
@@ -324,12 +453,63 @@ const $ = id => document.getElementById(id);
 
 function load() { try { return { custom: [], ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (e) { return { custom: [] }; } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch (e) {} }
-const divisions = () => [...DIVISIONS, ...(settings.custom || [])];
-const current = () => divisions().find(d => d.id === settings.division) || divisions()[0];
+const divisions = () => [...(configDivs ? configDivs.divs : DIVISIONS), ...(settings.custom || [])];
+const typeOf = d => d.type || "pools";
+let configDivs = loadCachedConfig();
+let configWarning = "";
+function loadCachedConfig() { try { const c = JSON.parse(localStorage.getItem(KEY + "-config")); return c && c.divs && c.divs.length ? c : null; } catch (e) { return null; } }
+
+function parseConfig(rows) {
+  const low = v => String(v || "").toLowerCase();
+  const hr = rows.findIndex(r => r.some(v => low(v) === "stage") && r.some(v => /^(link|url)$/.test(low(v))));
+  if (hr < 0) throw new Error("Couldn't find the Stage and Link column headings");
+  const h = rows[hr].map(low);
+  const cStage = h.indexOf("stage"), cName = h.findIndex(v => /^(division|name)$/.test(v)),
+        cLink = h.findIndex(v => /^(link|url)$/.test(v)), cShow = h.indexOf("show");
+  const divs = [], skipped = []; let event = "";
+  rows.slice(hr + 1).forEach(r => {
+    const stage = low(r[cStage]), name = (r[cName] || "").trim(), link = (r[cLink] || "").trim();
+    if (/^event/.test(stage)) { event = name; return; }
+    if (!stage && !name && !link) return;
+    if (cShow >= 0 && /^(no|n|false|hide|hidden)$/.test(low(r[cShow]))) return;
+    const type = /bracket/.test(stage) ? "brackets" : /pool/.test(stage) ? "pools" : null;
+    if (!type || !name) return;
+    if (!linkParts(link)) { skipped.push(name); return; }
+    divs.push({ id: type + ":" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), type, name, url: link });
+  });
+  return { divs, event, skipped };
+}
+
+async function loadConfig() {
+  const parts = linkParts(CONFIG_SHEET);
+  if (!parts) return;
+  try {
+    const c = parseConfig(await fetchRows(parts));
+    configWarning = c.skipped.length ? `The divisions sheet has a link that isn't a full Google Sheets address for: ${c.skipped.join(", ")}. Paste the whole address as plain text in the Link column.` : "";
+    if (c.divs.length) {
+      configDivs = c;
+      try { localStorage.setItem(KEY + "-config", JSON.stringify(c)); } catch (e) {}
+    }
+  } catch (e) {
+    configWarning = configDivs ? "" : "Couldn't read the divisions sheet, so the built-in list is showing.";
+  }
+}
+const eventName = () => (configDivs && configDivs.event) || "2025 NCHVC";
+const currentStage = () => settings.stage || typeOf(current());
+const current = () => {
+  const stage = settings.stage;
+  const pick = divisions().find(d => d.id === settings.division && (!stage || typeOf(d) === stage));
+  return pick || divisions().find(d => !stage || typeOf(d) === stage) || divisions()[0];
+};
 function slot(id) { return store[id] || (store[id] = { model: null, prevKeys: null, lastUpdated: null, error: null, errorDetail: "", active: null, busy: false }); }
 
 function snapshot(m) {
   const keys = {};
+  if (m.kind === "brackets") {
+    m.brackets.forEach(g => g.matches.forEach(x => keys[`${g.key}|m${x.r}-${x.c}`] =
+      JSON.stringify([x.top && x.top.team, x.bottom && x.bottom.team, x.sets, x.winner])));
+    return keys;
+  }
   m.pools.forEach(p => {
     p.matches.forEach(x => keys[`${p.letter}|m${x.num}`] = JSON.stringify(x.sets));
     p.teams.forEach(t => keys[`${p.letter}|t${t.team}`] = `${t.w}-${t.l}-${t.diff}`);
@@ -344,15 +524,19 @@ async function refresh() {
   if (s.busy) return;
   s.busy = true; busy(true);
   try {
-    const next = parsePools(await fetchRows(parts));
-    if (!next.pools.length) throw new Error("No pools found");
+    const rows = await fetchRows(parts);
+    const next = (d.type || "pools") === "brackets" ? parseBrackets(rows) : parsePools(rows);
+    const items = next.kind === "brackets" ? next.brackets.filter(g => g.matches.length) : next.pools;
+    if (!items.length) throw new Error("No pools found");
     const keys = snapshot(next);
     const changed = s.prevKeys ? Object.keys(keys).filter(k => s.prevKeys[k] !== undefined && s.prevKeys[k] !== keys[k]) : [];
     if (current().id === d.id) flashKeys = new Set(changed);
     s.prevKeys = keys; s.model = next; s.error = null; s.errorDetail = ""; s.lastUpdated = new Date();
-    if (!s.active || !next.pools.some(p => p.letter === s.active)) {
-      const mine = settings.follow && next.pools.find(p => p.teams.some(t => t.team === settings.follow));
-      s.active = (mine || next.pools[0]).letter;
+    const keyOf = x => next.kind === "brackets" ? x.key : x.letter;
+    const hasTeam = x => next.kind === "brackets" ? x.teams.includes(settings.follow) : x.teams.some(t => t.team === settings.follow);
+    if (!s.active || !items.some(x => keyOf(x) === s.active)) {
+      const mine = settings.follow && items.find(hasTeam);
+      s.active = keyOf(mine || items[0]);
     }
   } catch (e) {
     s.error = e.message === "No pools found" ? "nopools" : "fetch";
@@ -382,23 +566,27 @@ const signed = n => n > 0 ? "+" + n : n < 0 ? "−" + Math.abs(n) : "0";
 
 function renderDivisions() {
   const cur = current().id;
-  $("divs").innerHTML = divisions().map(d =>
-    `<button type="button" data-div="${esc(d.id)}" aria-pressed="${!setup && d.id === cur}">${esc(d.name)}</button>`).join("") +
+  const stage = currentStage();
+  document.querySelectorAll("#stages button").forEach(b => b.setAttribute("aria-pressed", b.dataset.stage === stage));
+  const btn = d => `<button type="button" data-div="${esc(d.id)}" aria-pressed="${!setup && d.id === cur}">${esc(d.name)}</button>`;
+  const list = divisions().filter(d => typeOf(d) === stage);
+  $("divs").innerHTML = list.map(btn).join("") +
     `<button type="button" class="add" id="addDiv" aria-pressed="${setup}">Add a division</button>`;
 }
 
 function render() {
   const d = current(), s = slot(d.id);
-  document.title = d.name + " pools"; $("title").textContent = d.name;
+  document.title = d.name + (d.type === "brackets" ? " brackets" : " pools"); $("title").textContent = d.name;
+  $("eventLine").textContent = eventName() + (d.type === "brackets" ? " bracket play" : " pool play");
   renderDivisions(); updateStatus(); busy(s.busy);
   if (setup) { $("bar").hidden = true; return renderSetup(); }
 
-  let html = "";
+  let html = configWarning ? `<div class="msg err"><p>${esc(configWarning)}</p></div>` : "";
   if (s.error) {
     const inPreview = location.protocol === "blob:" || /claude|anthropic/.test(location.hostname);
-    html += `<div class="msg err"><h2>${s.error === "nopools" ? "Couldn't find any pools on that tab" : "Couldn't reach the sheet"}</h2>
+    html += `<div class="msg err"><h2>${s.error === "nopools" ? `Couldn't find any ${d.type === "brackets" ? "brackets" : "pools"} on that tab` : "Couldn't reach the sheet"}</h2>
       <p>${s.error === "nopools"
-        ? "Make sure the link points at a pool play tab (it should end in #gid= followed by that tab's number)."
+        ? `Make sure the link points at a ${d.type === "brackets" ? "bracket" : "pool play"} tab (it should end in #gid= followed by that tab's number).`
         : "Check your connection and that the sheet is still shared as “Anyone with the link can view.”"}
       ${s.model ? " Showing the last results that loaded." : ""}</p>
       ${inPreview ? "<p>This preview window blocks outside connections. Download the file and open it in your browser.</p>" : ""}
@@ -408,6 +596,7 @@ function render() {
   if (!model) { $("bar").hidden = true; $("main").innerHTML = html; return; }
 
   $("bar").hidden = false;
+  if (model.kind === "brackets") return renderBrackets(s, html);
   $("pools").innerHTML = model.pools.map(p =>
     `<button type="button" data-pool="${esc(p.letter)}" aria-pressed="${p.letter === s.active}" class="${p.complete ? "done" : ""}" aria-label="${esc(p.name)}${p.complete ? ", final" : ""}">${esc(p.letter)}</button>`).join("");
   const allTeams = model.pools.flatMap(p => p.teams.map(t => t.team)).sort((a, b) => a.localeCompare(b));
@@ -440,7 +629,7 @@ function render() {
     const res = !m.played ? ["none", "none"] : aw > bw ? ["won", "lost"] : bw > aw ? ["lost", "won"] : ["none", "none"];
     const setCells = side => m.sets.map(([x, y]) => { const me = side ? y : x, them = side ? x : y; return `<span class="${me > them ? "w" : ""}">${me}</span>`; }).join("");
     const when = /rolling/i.test(m.time) ? "Follows previous match" : esc(m.time);
-    const where = courts.length > 1 && m.court ? `, ${esc(m.court.replace(/^Sports Pavilion\s*/i, "Court "))}` : "";
+    const where = courts.length > 1 && m.court ? `, ${esc(m.court.replace(/^Sports Pavilion\s*#?\s*/i, "Court "))}` : "";
     const tag = m.played ? (aw === bw ? `<span class="tag final">Split ${aw}–${bw}</span>` : `<span class="tag final">Final</span>`)
               : m.next ? `<span class="tag next">Up next</span>` : "";
     return `<li class="${(mine(m.a) || mine(m.b)).trim()}${fl("m" + m.num)}">
@@ -459,13 +648,68 @@ function render() {
   flashKeys = new Set();
 }
 
+function renderBrackets(s, html) {
+  const model = s.model;
+  const list = model.brackets.filter(g => g.matches.length);
+  $("pools").innerHTML = list.map(g =>
+    `<button type="button" data-pool="${esc(g.key)}" aria-pressed="${g.key === s.active}" class="${g.state === "final" ? "done" : ""}" aria-label="${esc(g.title)}${g.state === "final" ? ", final" : ""}">${esc(g.label)}</button>`).join("");
+  const allTeams = [...new Set(list.flatMap(g => g.teams))].sort((a, b) => a.localeCompare(b));
+  $("followSel").innerHTML = `<option value="">None</option>` + allTeams.map(t => `<option ${t === settings.follow ? "selected" : ""}>${esc(t)}</option>`).join("");
+
+  const g = list.find(x => x.key === s.active) || list[0];
+  const mine = t => settings.follow && t === settings.follow;
+  const badge = g.state === "final" ? `<span class="badge final">Final</span>` : g.state === "live" ? `<span class="badge live">In progress</span>` : `<span class="badge">Not started</span>`;
+  const courtName = c => esc(String(c || "").replace(/^Sports Pavilion\s*#?\s*/i, "Court "));
+
+  const matchCard = (m, i, roundName) => {
+    const sideHtml = (side) => {
+      const t = m[side];
+      const won = m.winner === side, lost = m.winner && !won;
+      const sets = m.sets.map(([w, l]) => won ? `<span class="w">${w}</span>` : `<span>${l}</span>`).join("");
+      if (!t) return `<div class="side none tbd"><span class="nm"><span class="seed"></span>To be decided</span><span class="sets"></span></div>`;
+      return `<div class="side ${won ? "won" : lost ? "lost" : "none"}${mine(t.team) ? " mine" : ""}"><span class="nm"><span class="seed">${esc(t.seed)}</span>${esc(t.team)}</span><span class="sets">${m.winner ? sets : ""}</span></div>`;
+    };
+    const when = [m.day, m.time].filter(Boolean).join(" ");
+    const tag = m.winner ? `<span class="tag final">Final</span>` : m.next ? `<span class="tag next">Up next</span>` : "";
+    const loser = m.winner ? m[m.winner === "top" ? "bottom" : "top"] : null;
+    const foot = [m.format, m.loserTo ? (loser ? `${esc(loser.team)} moves to ${esc(m.loserTo)}` : `Loser moves to ${esc(m.loserTo)}`) : ""].filter(Boolean).join(". ");
+    const flash = flashKeys.has(`${g.key}|m${m.r}-${m.c}`) ? " flash" : "";
+    const followed = (m.top && mine(m.top.team)) || (m.bottom && mine(m.bottom.team)) ? " mine" : "";
+    return `<div class="bmatch${flash}${followed}">
+      <div class="mhead"><span>${esc(when)}${m.court ? ", " + courtName(m.court) : ""}</span>${tag}</div>
+      ${sideHtml("top")}${sideHtml("bottom")}
+      ${foot ? `<div class="foot">${foot}</div>` : ""}</div>`;
+  };
+
+  const rounds = g.rounds.map(rd => `<div class="round"><h3>${esc(rd.name)}</h3><div class="slots">${
+    rd.matches.map((m, i) => matchCard(m, i, rd.name)).join("")}</div></div>`).join("");
+
+  const champ = g.champion ? `<div class="champ"><span class="lbl">Champion</span><span class="who">${esc(g.champion)}</span>${g.award ? `<span class="award">Wins ${esc(g.award)}</span>` : ""}</div>` : "";
+
+  const results = g.results.length ? `<section class="card"><h3>Results</h3><table><thead><tr><th></th><th>Team</th><th>Next</th></tr></thead><tbody>${
+    g.results.map((r, i) => `<tr class="${mine(r.team) ? "mine" : ""}"><td class="rank">${i + 1}</td><td><span class="team">${esc(r.team)}</span></td><td>${esc(r.adv)}</td></tr>`).join("")
+  }</tbody></table><p class="note">Final placement and where each team plays next, from the tournament sheet.</p></section>` : "";
+
+  html += `<div class="pool-head"><h2>${esc(g.title)}</h2>${badge}</div>
+    ${champ}
+    <div class="bracket" style="--rounds:${g.rounds.length}">${rounds}</div>
+    ${results}
+    ${model.note ? `<footer>${esc(model.note)}</footer>` : ""}`;
+  $("main").innerHTML = html;
+  flashKeys = new Set();
+}
+
 function renderSetup() {
   const custom = settings.custom || [];
   $("main").innerHTML = `
     <div class="msg"><h2>Add a division</h2>
-      <p>Open that division's pool tab in Google Sheets and copy the link from the address bar. It should include <strong>#gid=</strong> so the viewer reads the right tab.</p></div>
+      <p>Divisions added here are saved only on this device. To add one for everyone, add a row to the divisions sheet instead.</p>
+      <p>Open that division's pool or bracket tab in Google Sheets and copy the link from the address bar. It should include <strong>#gid=</strong> so the viewer reads the right tab.</p></div>
     <form class="setup" id="setupForm">
       <label>Division name<input name="name" required placeholder="Boys 18U"></label>
+      <label>What's on this tab
+        <select name="type" style="font:16px Barlow,sans-serif;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)">
+          <option value="pools" ${currentStage() === "pools" ? "selected" : ""}>Pool play</option><option value="brackets" ${currentStage() === "brackets" ? "selected" : ""}>Bracket play</option></select></label>
       <label>Google Sheet link<input name="url" required placeholder="https://docs.google.com/spreadsheets/d/…#gid=…"></label>
       <div class="row">
         <button class="refresh" type="submit">Add division</button>
@@ -478,8 +722,8 @@ function renderSetup() {
     e.preventDefault();
     const f = new FormData(e.target);
     if (!linkParts(f.get("url"))) { alert("That doesn't look like a Google Sheets link."); return; }
-    const div = { id: "c" + Date.now(), name: f.get("name").trim(), url: f.get("url").trim() };
-    settings.custom = [...custom, div]; settings.division = div.id; save();
+    const div = { id: "c" + Date.now(), type: f.get("type") || "pools", name: f.get("name").trim(), url: f.get("url").trim() };
+    settings.custom = [...custom, div]; settings.division = div.id; settings.stage = div.type; save();
     setup = false; render(); refresh();
   });
   $("cancelBtn").addEventListener("click", () => { setup = false; render(); });
@@ -491,7 +735,18 @@ function renderSetup() {
 }
 
 /* ---------------- wiring ---------------- */
-$("refreshBtn").addEventListener("click", refresh);
+$("refreshBtn").addEventListener("click", async () => { await loadConfig(); render(); refresh(); });
+$("stages").addEventListener("click", e => {
+  const b = e.target.closest("button[data-stage]"); if (!b || b.dataset.stage === currentStage() && !setup) return;
+  settings.lastByStage = { ...(settings.lastByStage || {}), [currentStage()]: current().id };
+  settings.stage = b.dataset.stage;
+  const remembered = (settings.lastByStage || {})[settings.stage];
+  const options = divisions().filter(d => typeOf(d) === settings.stage);
+  settings.division = (options.find(d => d.id === remembered) || options[0] || {}).id;
+  setup = false; flashKeys = new Set(); save(); render();
+  const s = slot(current().id);
+  if (!s.lastUpdated || Date.now() - s.lastUpdated > 30000) refresh();
+});
 $("divs").addEventListener("click", e => {
   if (e.target.closest("#addDiv")) { setup = true; render(); return; }
   const b = e.target.closest("button[data-div]"); if (!b) return;
@@ -504,8 +759,13 @@ $("pools").addEventListener("click", e => { const b = e.target.closest("button[d
 $("followSel").addEventListener("change", e => {
   settings.follow = e.target.value; save();
   const s = slot(current().id);
-  const p = s.model && s.model.pools.find(x => x.teams.some(t => t.team === settings.follow));
-  if (p) s.active = p.letter;
+  if (s.model && s.model.kind === "brackets") {
+    const g = s.model.brackets.find(x => x.teams.includes(settings.follow));
+    if (g) s.active = g.key;
+  } else {
+    const p = s.model && s.model.pools.find(x => x.teams.some(t => t.team === settings.follow));
+    if (p) s.active = p.letter;
+  }
   render();
 });
 $("autoChk").addEventListener("change", e => setAuto(e.target.checked));
@@ -517,7 +777,7 @@ function setAuto(on) {
 setInterval(updateStatus, 30000);
 if (settings.auto) { $("autoChk").checked = true; setAuto(true); }
 render();
-refresh();
+(async () => { await loadConfig(); render(); refresh(); })();
 </script>
 </body>
 </html>
