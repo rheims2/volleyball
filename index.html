@@ -657,56 +657,48 @@ async function loadConfig() {
       try { localStorage.setItem(KEY + "-config", JSON.stringify(c, noTags)); } catch (e) {}
     }
   } catch (e) {
-    configWarning = configDivs || discovered ? "" : "Couldn't read the divisions sheet, so the built-in list is showing.";
+    configWarning = configDivs ? "" : "Couldn't read the divisions sheet, so the saved list of divisions is showing.";
   }
 }
 const eventName = () => (configDivs && configDivs.event) || (discovered && discovered.event) || "2025 NCHVC";
 
-/* ---------------- division list: NCHVC index + divisions sheet ---------------- */
-let discovered = loadDiscovered();     // { at, divs, failed, event } from the NCHVC index
+/* ---------------- division list: the divisions sheet ---------------- */
+/* The divisions sheet is the list. It's filled once from the NCHVC index: the Add a
+   division page shows its rows ready to paste (from SAVED_LIST, or rebuilt through the
+   Sheets API with "Build rows from the NCHVC index"). SAVED_LIST is used only when the
+   sheet can't be read. */
+let discovered = SAVED_LIST;           // { at, divs, failed, event, books }: the latest index discovery, for building sheet rows
 let listCache = null, mergeWarning = "", discoveryError = "", discovery = null;
-// A list rebuilt in this browser wins until a newer one is saved in the viewer
-function loadDiscovered() {
-  let c = null; try { c = JSON.parse(localStorage.getItem(KEY + "-discovered")); } catch (e) {}
-  return c && c.divs && c.divs.length && c.at > SAVED_LIST.at ? c : SAVED_LIST;
-}
+try { localStorage.removeItem(KEY + "-discovered"); } catch (e) {}   // older versions kept a rebuilt list here
 const baseDivisions = () => listCache || (listCache = buildList());
 
-/* Rows in the divisions sheet override discovered entries that have the same tab
-   link (to rename them) or the same name: Show = No hides one, filled-in Gender,
-   Age, Level or Bracket fix its tags, and rows matching nothing are added. */
 const sameTab = (a, b) => { const x = linkParts(a), y = linkParts(b); return !!(x && y && x.id === y.id && x.gid === y.gid); };
 function buildList() {
-  const rows = configDivs ? configDivs.rows || configDivs.divs : [];
-  const skipped = configDivs ? configDivs.skipped || [] : [];
   mergeWarning = "";
-  if (!discovered) {
-    // With an API key, rows without a link are overrides for the index, not mistakes
-    if (skipped.length && !API_KEY) mergeWarning = linkWarning(skipped);
-    return configDivs && configDivs.divs.length ? configDivs.divs.filter((d, i, all) => all.findIndex(x => x.id === d.id || sameTab(x.url, d.url)) === i) : DIVISIONS;
-  }
-  const used = new Set(), out = [];
-  discovered.divs.forEach(d => {
-    let i = rows.findIndex((r, k) => !used.has(k) && r.url && sameTab(r.url, d.url));
-    if (i < 0) i = rows.findIndex((r, k) => !used.has(k) && r.type === d.type && r.name.toLowerCase() === d.name.toLowerCase());
-    if (i < 0) return out.push({ ...d });
-    used.add(i);
-    const r = rows[i];
-    if (r.hidden) return;
-    out.push({ ...d, id: divId(r.type, r.name), type: r.type, name: r.name, url: linkParts(r.url) ? r.url : d.url,
-      gender: r.gender || "", age: r.age || "", level: r.level || "", bracket: r.bracket || "" });
-  });
-  const unlinked = [];
-  rows.forEach((r, k) => {
-    if (used.has(k) || r.hidden) return;
-    if (!linkParts(r.url)) return unlinked.push(r.name);
-    // A second row for a tab or name already on the list adds nothing
-    if (!out.some(d => d.id === divId(r.type, r.name) || sameTab(d.url, r.url))) out.push({ ...r });
-  });
-  if (unlinked.length) mergeWarning = linkWarning(unlinked);
-  return out;
+  if (!configDivs || !configDivs.divs.length) return DIVISIONS;
+  if ((configDivs.skipped || []).length) mergeWarning = linkWarning(configDivs.skipped);
+  // A second row for a tab or name already on the list adds nothing
+  return configDivs.divs.filter((d, i, all) => all.findIndex(x => x.id === d.id || sameTab(x.url, d.url)) === i);
 }
-const linkWarning = names => `The divisions sheet has a row without a full Google Sheets address for: ${names.join(", ")}. Paste the whole address as plain text in the Link column, or use the exact name of a division from the NCHVC index.`;
+const linkWarning = names => `The divisions sheet has a row without a full Google Sheets address for: ${names.join(", ")}. Paste the whole address as plain text in the Link column.`;
+
+/* Rows for the divisions sheet from an index discovery, tab separated so they paste
+   into Google Sheets as cells. Rows already in the sheet keep their name, Show and
+   tags; unreadable tabs come in hidden (Show = No); sheet rows the index doesn't have
+   stay at the end. */
+function sheetRows(found) {
+  const rows = (configDivs && configDivs.rows) || [];
+  const used = new Set();
+  const mine = d => { const i = rows.findIndex((r, k) => !used.has(k) && r.url && sameTab(r.url, d.url)); if (i >= 0) used.add(i); return i >= 0 ? rows[i] : null; };
+  const stage = t => t === "brackets" ? "Bracket play" : "Pool play";
+  const out = [["Stage", "Division", "Link", "Show", "Gender", "Age", "Level", "Bracket"], ["Event", (configDivs && configDivs.event) || found.event || "", "", "", "", "", "", ""]];
+  const add = (d, show) => { const r = mine(d);
+    out.push([stage(d.type), r ? r.name : d.name, d.url, r && r.hidden ? "No" : show, r ? r.gender : "", r ? r.age : "", r ? r.level : "", r ? r.bracket : ""]); };
+  found.divs.forEach(d => add(d, "Yes"));
+  (found.failed || []).filter(f => f.url).forEach(f => add({ type: /pool/i.test(f.tab) ? "pools" : "brackets", name: f.name, url: f.url }, "No"));
+  rows.forEach((r, k) => { if (!used.has(k) && !out.some(o => sameTab(o[2], r.url))) out.push([stage(r.type), r.name, r.url, r.hidden ? "No" : "Yes", r.gender, r.age, r.level, r.bracket]); });
+  return out.map(r => r.map(v => String(v || "").replace(/[\t\n]/g, " ")).join("\t")).join("\n");
+}
 
 async function sheetsApi(id, fields) {
   // The key is restricted to this site's address, so send the full page URL as the
@@ -822,7 +814,8 @@ function setBackoff(hitLimit) {
   try { localStorage.setItem(KEY + "-backoff", JSON.stringify({ until: Date.now() + wait, wait })); } catch (e) {}
 }
 
-// Runs only when someone clicks "Update division list", never on page load or score refreshes
+// Runs only when someone clicks "Build rows from the NCHVC index", never on page load or score refreshes.
+// The result only fills in the rows to paste into the divisions sheet; the list itself comes from the sheet.
 async function updateDivisionList() {
   if (discovery || !API_KEY || !linkParts(INDEX_SHEET) || backoffLeft()) return;
   discovery = { done: 0, total: 0 };
@@ -830,16 +823,14 @@ async function updateDivisionList() {
   try {
     const found = await discoverDivisions((done, total) => { discovery = { done, total }; if (setup) renderListStatus(); });
     if (!found.divs.length) throw new Error("none of the index's tabs could be read");
-    discovered = found; listCache = null; discoveryError = "";
-    try { localStorage.setItem(KEY + "-discovered", JSON.stringify(found)); localStorage.removeItem(KEY + "-backoff"); } catch (e) {}
+    discovered = found; discoveryError = "";
+    try { localStorage.removeItem(KEY + "-backoff"); } catch (e) {}
   } catch (e) {
     setBackoff(e.status === 429);
-    discoveryError = (e.status === 429 ? "Google asked us to slow down." : e.message) + " The saved list is still in use.";
+    discoveryError = e.status === 429 ? "Google asked us to slow down." : e.message;
   }
   discovery = null;
-  render();
-  const s = slot(current().id);
-  if (!setup && current().id !== "__none" && !s.lastUpdated && !s.busy) refresh();
+  if (setup) renderListStatus();
 }
 const currentStage = () => settings.stage || typeOf(divisions().find(d => d.id === settings.division) || divisions()[0] || {});
 /* Filter tags come from the divisions sheet's optional Gender, Age, Level and
@@ -1126,22 +1117,29 @@ function renderListStatus() {
   const box = $("listStatus"); if (!box) return;
   const when = t => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   const wait = Math.ceil(backoffLeft() / 60e3);
+  const fromSheet = configDivs && configDivs.divs.length;
   const f = discovered.failed || [];
-  const local = discovered !== SAVED_LIST;
-  let body = `<p>${discovered.divs.length} tabs from ${discovered.books || "the"} NCHVC division spreadsheets, ${local ? `updated in this browser ${esc(when(discovered.at))}` : `saved from the NCHVC index ${esc(when(discovered.at))}`}.
-      Your divisions sheet can rename or hide any of them (Show = No) and add others.</p>`;
-  if (!API_KEY) body += `<p>To update the list from the NCHVC index here, add a Google Sheets API key to config.js (sheetsApiKey).</p>`;
-  else {
-    body += `<p>If the NCHVC index changes, update the list here. This uses the Google Sheets API and changes the list in this browser only.</p>
-      ${discovery ? `<p><strong>Updating…</strong> ${discovery.total ? `checked ${discovery.done} of ${discovery.total} tabs` : "reading the index"}</p>`
-        : `<p><button class="ghost" type="button" id="updateList" ${wait ? "disabled" : ""}>Update division list</button>
-           ${wait ? ` Google asked us to slow down, so this is paused for about ${wait} minute${wait === 1 ? "" : "s"}.` : ""}</p>`}
-      ${discoveryError && !discovery ? `<p style="color:var(--bad)">Last update failed: ${esc(discoveryError)}</p>` : ""}`;
-  }
-  body += `${f.length ? `<details><summary>${f.length} tab${f.length === 1 ? "" : "s"} couldn't be read (their layout isn't supported yet)</summary><ul>${
-        f.map(x => `<li>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>` : esc(x.name)}${x.tab ? ` (${esc(x.book)}, tab “${esc(x.tab)}”)` : ""}: ${esc(x.reason)}</li>`).join("")}</ul></details>` : ""}`;
+  let body = `<p>${fromSheet ? `The division list comes from your divisions sheet (${baseDivisions().length} divisions).`
+      : "Your divisions sheet couldn't be read or is empty, so the saved list is showing."}
+    To fill the sheet from the NCHVC index, copy the rows below and paste them into cell A1 of the sheet, replacing what's there.
+    Rows already in the sheet keep their name and Show; tabs the viewer can't read yet come in with Show = No.</p>
+    <p><textarea id="sheetRows" readonly rows="8" style="width:100%;font:13px/1.4 ui-monospace,Menlo,monospace;border:1px solid var(--line);border-radius:8px;padding:8px;white-space:pre;overflow:auto">${esc(sheetRows(discovered))}</textarea></p>
+    <p class="row"><button class="refresh" type="button" id="copyRows">Copy rows</button>
+      ${API_KEY ? (discovery ? `<span><strong>Reading the index…</strong> ${discovery.total ? `checked ${discovery.done} of ${discovery.total} tabs` : ""}</span>`
+        : `<button class="ghost" type="button" id="updateList" ${wait ? "disabled" : ""}>Build rows from the NCHVC index</button>`) : ""}</p>
+    <p style="color:var(--muted);font-size:14px">${discovered === SAVED_LIST ? `These rows come from the saved index discovery (${esc(when(discovered.at))}).` : `Rebuilt from the NCHVC index ${esc(when(discovered.at))}.`}
+      ${API_KEY ? "Rebuilding uses the Google Sheets API (17 reads) and is only needed if the index changes, such as next year." : ""}
+      ${wait ? ` Google asked us to slow down, so rebuilding is paused for about ${wait} minute${wait === 1 ? "" : "s"}.` : ""}</p>
+    ${discoveryError && !discovery ? `<p style="color:var(--bad)">Rebuilding failed: ${esc(discoveryError)}</p>` : ""}
+    ${f.length ? `<details><summary>${f.length} tab${f.length === 1 ? "" : "s"} couldn't be read (their layout isn't supported yet)</summary><ul>${
+      f.map(x => `<li>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>` : esc(x.name)}${x.tab ? ` (${esc(x.book)}, tab “${esc(x.tab)}”)` : ""}: ${esc(x.reason)}</li>`).join("")}</ul></details>` : ""}`;
   box.innerHTML = `<h2>Division list</h2>${body}`;
   const b = $("updateList"); if (b) b.addEventListener("click", updateDivisionList);
+  $("copyRows").addEventListener("click", async e => {
+    const t = $("sheetRows"); t.select();
+    try { await navigator.clipboard.writeText(t.value); } catch (err) { document.execCommand("copy"); }
+    e.target.textContent = "Copied";
+  });
 }
 
 function renderSetup() {
