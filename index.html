@@ -869,7 +869,14 @@ const FILTERS = [
   { key: "level", label: "Division", stages: ["pools", "brackets"] },
   { key: "bracket", label: "Bracket", stages: ["brackets"] }
 ];
-const filtersFor = stage => (settings.filters && settings.filters[stage]) || {};
+/* One set of filter choices for both stages, so they stay put when switching between
+   Pool play and Bracket play. Only a stage's own filters apply to it (the Bracket
+   choice is kept while on Pool play). Older saves kept a set per stage. */
+const allFilters = () => settings.sharedFilters || (settings.filters && settings.filters[settings.stage || "pools"]) || {};
+const filtersFor = stage => {
+  const f = allFilters(), keys = FILTERS.filter(x => x.stages.includes(stage)).map(x => x.key);
+  return Object.fromEntries(keys.filter(k => f[k]).map(k => [k, f[k]]));
+};
 function fits(d, f, skip) {
   const t = tagsOf(d);
   return Object.keys(f).every(k => k === skip || !f[k] || (Array.isArray(t[k]) ? t[k].includes(f[k]) : t[k] === f[k]));
@@ -1188,7 +1195,7 @@ $("stages").addEventListener("click", e => {
   if (!s.lastUpdated || Date.now() - s.lastUpdated > 30000) refresh();
 });
 function clearFilters() {
-  settings.filters = { ...(settings.filters || {}), [currentStage()]: {} };
+  settings.sharedFilters = {};
   save(); afterFilterChange();
 }
 function afterFilterChange() {
@@ -1200,8 +1207,7 @@ function afterFilterChange() {
 }
 $("filters").addEventListener("change", e => {
   const sel = e.target.closest("select[data-filter]"); if (!sel) return;
-  const stage = currentStage();
-  settings.filters = { ...(settings.filters || {}), [stage]: { ...filtersFor(stage), [sel.dataset.filter]: sel.value } };
+  settings.sharedFilters = { ...allFilters(), [sel.dataset.filter]: sel.value };
   save(); afterFilterChange();
 });
 $("filters").addEventListener("click", e => { if (e.target.closest("#clearFilters")) clearFilters(); });

@@ -84,7 +84,7 @@ Before seeding, a bracket tab has no teams, so discovery drops it. Rerun discove
 
 ## Features
 
-- Pool play / Bracket play switch; division buttons filtered by Boys or girls, Age group, Division (D1–D4) and Bracket (brackets only). Filters cascade and are remembered per stage.
+- Pool play / Bracket play switch; division buttons filtered by Boys or girls, Age group, Division (D1–D4) and Bracket (brackets only). Filters cascade and are shared by both stages, so they stay set when switching between Pool play and Bracket play (the Bracket choice is kept while on Pool play, where it doesn't apply).
 - Pool pages: standings plus match list with set scores, "Up next", per-match court when a pool uses several courts.
 - Bracket pages: champion banner with award, rounds side by side (stacked on phones), placement matches (3rd place, consolation) below, loser destinations, results table.
 - Follow a team (highlights it and jumps to its pool/bracket), Refresh button, optional auto-refresh every 60 s, highlight of changed cells since last refresh.
