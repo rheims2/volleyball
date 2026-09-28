@@ -68,6 +68,8 @@
   .champ .award { color: #B8C3D9; font-size: 15px; }
   .bracket { display: grid; grid-template-columns: repeat(var(--rounds), minmax(0, 1fr)); gap: 18px; margin-bottom: 22px; }
   .round { display: flex; flex-direction: column; gap: 14px; }
+  .bracket.placements { grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); }
+  .subhead { font: 700 26px/1 "Barlow Condensed", sans-serif; margin: 4px 0 14px; }
   .round h3 { font: 700 20px "Barlow Condensed", sans-serif; margin: 0; }
   .round .slots { display: flex; flex-direction: column; justify-content: space-around; gap: 14px; flex: 1; }
   .bmatch { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
@@ -203,55 +205,58 @@ const INDEX_SHEET = VIEWER_CONFIG.indexSheet || "https://docs.google.com/spreads
    API in that browser only; to update it for everyone, regenerate this block.
    type is "pools" for pool play tabs or "brackets" for bracket tabs. */
 const SAVED_LIST = {
-  at: 1790556777048, // 2026-09-28
+  at: 1790557763946, // 2026-09-28, with Silver and Bronze layouts
   event: "2025 NCHVC", books: 16,
   divs: [
     {id: "pools:girls-18u-d1-d2", type: "pools", name: "Girls 18U D1/D2", url: "https://docs.google.com/spreadsheets/d/1lsy6Q5IjnCoR1BbJcePE1zkkt9jAKc7YEBFBCrjkcxM/edit#gid=1936931201"},
+    {id: "brackets:girls-18u-d1-bronze", type: "brackets", name: "Girls 18U D1 Bronze", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit#gid=170040749"},
+    {id: "brackets:girls-18u-d1-silver", type: "brackets", name: "Girls 18U D1 Silver", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit#gid=1536733858"},
+    {id: "brackets:girls-18u-d1-gbss", type: "brackets", name: "Girls 18U D1 GBSS", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit#gid=1815414200"},
     {id: "brackets:girls-18u-d1-gold-ball", type: "brackets", name: "Girls 18U D1 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit#gid=1394730142"},
+    {id: "brackets:girls-18u-d2-bronze", type: "brackets", name: "Girls 18U D2 Bronze", url: "https://docs.google.com/spreadsheets/d/1fFVIoxbWJLc44mSb3gGy8ahHl1qoovYZbpEUGbX4S1Y/edit#gid=1542724545"},
+    {id: "brackets:girls-18u-d2-gold-silver", type: "brackets", name: "Girls 18U D2 Gold & Silver", url: "https://docs.google.com/spreadsheets/d/1fFVIoxbWJLc44mSb3gGy8ahHl1qoovYZbpEUGbX4S1Y/edit#gid=1229488211"},
     {id: "brackets:girls-18u-d2-gold-ball", type: "brackets", name: "Girls 18U D2 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1fFVIoxbWJLc44mSb3gGy8ahHl1qoovYZbpEUGbX4S1Y/edit#gid=29396548"},
     {id: "pools:girls-18u-d3-d4", type: "pools", name: "Girls 18U D3/D4", url: "https://docs.google.com/spreadsheets/d/1V6l2tdGT82u8eNAnzpHv7eP11dUPNtRsUpSB-bMaT-k/edit#gid=1936931201"},
+    {id: "brackets:girls-18u-d3-bronze", type: "brackets", name: "Girls 18U D3 Bronze", url: "https://docs.google.com/spreadsheets/d/1h2bDdmgCMF6ps0TtL1Nqqq98MzU4GmRxTUa5ALU3tMc/edit#gid=1542724545"},
+    {id: "brackets:girls-18u-d3-gold-silver", type: "brackets", name: "Girls 18U D3 Gold & Silver", url: "https://docs.google.com/spreadsheets/d/1h2bDdmgCMF6ps0TtL1Nqqq98MzU4GmRxTUa5ALU3tMc/edit#gid=1229488211"},
     {id: "brackets:girls-18u-d3-gold-ball", type: "brackets", name: "Girls 18U D3 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1h2bDdmgCMF6ps0TtL1Nqqq98MzU4GmRxTUa5ALU3tMc/edit#gid=29396548"},
+    {id: "brackets:girls-18u-d4-gold-silver", type: "brackets", name: "Girls 18U D4 Gold & Silver", url: "https://docs.google.com/spreadsheets/d/1oiE5cb-vFbiqPaJ1C4D3FqZTmHHSulph-WtHVcF2k6g/edit#gid=1229488211"},
+    {id: "brackets:girls-18u-d4-bronze", type: "brackets", name: "Girls 18U D4 Bronze", url: "https://docs.google.com/spreadsheets/d/1oiE5cb-vFbiqPaJ1C4D3FqZTmHHSulph-WtHVcF2k6g/edit#gid=1542724545"},
     {id: "brackets:girls-18u-d4-gold-ball", type: "brackets", name: "Girls 18U D4 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1oiE5cb-vFbiqPaJ1C4D3FqZTmHHSulph-WtHVcF2k6g/edit#gid=29396548"},
+    {id: "brackets:girls-jv-gold-silver", type: "brackets", name: "Girls JV Gold & Silver", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=1087476426"},
+    {id: "brackets:girls-jv-bronze", type: "brackets", name: "Girls JV Bronze", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=1401360125"},
     {id: "pools:girls-jv", type: "pools", name: "Girls JV", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=583227128"},
     {id: "brackets:girls-jv-gold-ball", type: "brackets", name: "Girls JV Gold Ball", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=890607382"},
     {id: "pools:girls-16u-d1-d2", type: "pools", name: "Girls 16U D1/D2", url: "https://docs.google.com/spreadsheets/d/19aUPwTWsLqK9-DmQZtYWyjhF5Il1y1qgt7EOTFuIPtU/edit#gid=1936931201"},
+    {id: "brackets:girls-16u-d1-bronze", type: "brackets", name: "Girls 16U D1 Bronze", url: "https://docs.google.com/spreadsheets/d/1_s_w8XDmsrX_pT_5ts1wwlibVUMS85PvKqYfF39a2n4/edit#gid=1542724545"},
+    {id: "brackets:girls-16u-d1-gold-silver", type: "brackets", name: "Girls 16U D1 Gold & Silver", url: "https://docs.google.com/spreadsheets/d/1_s_w8XDmsrX_pT_5ts1wwlibVUMS85PvKqYfF39a2n4/edit#gid=1229488211"},
     {id: "brackets:girls-16u-d1-gold-ball", type: "brackets", name: "Girls 16U D1 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1_s_w8XDmsrX_pT_5ts1wwlibVUMS85PvKqYfF39a2n4/edit#gid=29396548"},
+    {id: "brackets:girls-14u-d1-gold-silver", type: "brackets", name: "Girls 14U D1 Gold & Silver", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=1087476426"},
+    {id: "brackets:girls-14u-d1-bronze", type: "brackets", name: "Girls 14U D1 Bronze", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=1401360125"},
     {id: "pools:girls-14u-d1", type: "pools", name: "Girls 14U D1", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=583227128"},
     {id: "brackets:girls-14u-d1-gold-ball", type: "brackets", name: "Girls 14U D1 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=890607382"},
     {id: "pools:girls-14u-d2", type: "pools", name: "Girls 14U D2", url: "https://docs.google.com/spreadsheets/d/169nDYxrkz_rEJBe8t6NcW3GAvGNCZaWckcvqKFkgG9E/edit#gid=633157092"},
     {id: "pools:girls-12u", type: "pools", name: "Girls 12U", url: "https://docs.google.com/spreadsheets/d/1HuyU-aopbuzSEb6ozKCgbMwKH-UstOsQZx75vDCwe84/edit#gid=1936931201"},
+    {id: "brackets:boys-18u-gold-silver", type: "brackets", name: "Boys 18U Gold & Silver", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=1087476426"},
+    {id: "brackets:boys-18u-bronze", type: "brackets", name: "Boys 18U Bronze", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=1401360125"},
     {id: "pools:boys-18u", type: "pools", name: "Boys 18U", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=583227128"},
     {id: "brackets:boys-18u-gold-ball", type: "brackets", name: "Boys 18U Gold Ball", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=890607382"},
     {id: "pools:boys-16u", type: "pools", name: "Boys 16U", url: "https://docs.google.com/spreadsheets/d/1FQrMjn4s7hQNWJOZfYgqsuh4XPYlM_A_GvHb95ZzLxk/edit#gid=162767307"},
+    {id: "brackets:boys-14u-gold", type: "brackets", name: "Boys 14U Gold", url: "https://docs.google.com/spreadsheets/d/12w1jqg103zOBc_ZhLLffDf7si3jvRgTJxIHlLHmtFJ4/edit#gid=1815414200"},
     {id: "pools:boys-14u", type: "pools", name: "Boys 14U", url: "https://docs.google.com/spreadsheets/d/12w1jqg103zOBc_ZhLLffDf7si3jvRgTJxIHlLHmtFJ4/edit#gid=150219924"}
   ],
   failed: [
-    {name: "Girls 18U D1 Bronze", tab: "D1 Bronze", book: "G18u D1", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit#gid=170040749", reason: "no brackets found"},
-    {name: "Girls 18U D1 Silver", tab: "D1 Silver", book: "G18u D1", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit#gid=1536733858", reason: "no brackets found"},
-    {name: "Girls 18U D1 GBSS", tab: "D1 GBSS", book: "G18u D1", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit#gid=1815414200", reason: "no brackets found"},
     {name: "Girls 18U D2 Copper", tab: "D2 Copper", book: "G18u D2", url: "https://docs.google.com/spreadsheets/d/1fFVIoxbWJLc44mSb3gGy8ahHl1qoovYZbpEUGbX4S1Y/edit#gid=22559099", reason: "no brackets found"},
-    {name: "Girls 18U D2 Bronze", tab: "D2 Bronze", book: "G18u D2", url: "https://docs.google.com/spreadsheets/d/1fFVIoxbWJLc44mSb3gGy8ahHl1qoovYZbpEUGbX4S1Y/edit#gid=1542724545", reason: "no brackets found"},
-    {name: "Girls 18U D2 Gold & Silver", tab: "D2 Gold & Silver", book: "G18u D2", url: "https://docs.google.com/spreadsheets/d/1fFVIoxbWJLc44mSb3gGy8ahHl1qoovYZbpEUGbX4S1Y/edit#gid=1229488211", reason: "no brackets found"},
     {name: "Girls 18U D3 Copper", tab: "D3 Copper", book: "G18u D3", url: "https://docs.google.com/spreadsheets/d/1h2bDdmgCMF6ps0TtL1Nqqq98MzU4GmRxTUa5ALU3tMc/edit#gid=22559099", reason: "no brackets found"},
-    {name: "Girls 18U D3 Bronze", tab: "D3 Bronze", book: "G18u D3", url: "https://docs.google.com/spreadsheets/d/1h2bDdmgCMF6ps0TtL1Nqqq98MzU4GmRxTUa5ALU3tMc/edit#gid=1542724545", reason: "no brackets found"},
-    {name: "Girls 18U D3 Gold & Silver", tab: "D3 Gold & Silver", book: "G18u D3", url: "https://docs.google.com/spreadsheets/d/1h2bDdmgCMF6ps0TtL1Nqqq98MzU4GmRxTUa5ALU3tMc/edit#gid=1229488211", reason: "no brackets found"},
-    {name: "Girls 18U D4 Gold & Silver", tab: "D4 Gold & Silver", book: "G18u D4", url: "https://docs.google.com/spreadsheets/d/1oiE5cb-vFbiqPaJ1C4D3FqZTmHHSulph-WtHVcF2k6g/edit#gid=1229488211", reason: "no brackets found"},
-    {name: "Girls 18U D4 Bronze", tab: "D4 Bronze", book: "G18u D4", url: "https://docs.google.com/spreadsheets/d/1oiE5cb-vFbiqPaJ1C4D3FqZTmHHSulph-WtHVcF2k6g/edit#gid=1542724545", reason: "no brackets found"},
     {name: "Girls 18U D4 Copper", tab: "D4 Copper", book: "G18u D4", url: "https://docs.google.com/spreadsheets/d/1oiE5cb-vFbiqPaJ1C4D3FqZTmHHSulph-WtHVcF2k6g/edit#gid=22559099", reason: "no brackets found"},
-    {name: "Girls JV Gold & Silver", tab: "Gold & Silver", book: "GJV", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=1087476426", reason: "no brackets found"},
     {name: "Girls JV Iron Finals", tab: "Iron Finals", book: "GJV", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=1573568918", reason: "no brackets found"},
     {name: "Girls JV Copper", tab: "Copper", book: "GJV", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=1770539009", reason: "no brackets found"},
-    {name: "Girls JV Bronze", tab: "Bronze", book: "GJV", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=1401360125", reason: "no brackets found"},
     {name: "Girls JV Iron Pools", tab: "Iron Pools", book: "GJV", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=1215706211", reason: "no pools found"},
     {name: "Girls 16U D1 Copper", tab: "Copper", book: "G16u D1", url: "https://docs.google.com/spreadsheets/d/1_s_w8XDmsrX_pT_5ts1wwlibVUMS85PvKqYfF39a2n4/edit#gid=22559099", reason: "no brackets found"},
-    {name: "Girls 16U D1 Bronze", tab: "Bronze", book: "G16u D1", url: "https://docs.google.com/spreadsheets/d/1_s_w8XDmsrX_pT_5ts1wwlibVUMS85PvKqYfF39a2n4/edit#gid=1542724545", reason: "no brackets found"},
-    {name: "Girls 16U D1 Gold & Silver", tab: "Gold & Silver", book: "G16u D1", url: "https://docs.google.com/spreadsheets/d/1_s_w8XDmsrX_pT_5ts1wwlibVUMS85PvKqYfF39a2n4/edit#gid=1229488211", reason: "no brackets found"},
     {name: "Girls 16U D2 Gold", tab: "Gold Bracket", book: "G16u D2", url: "https://docs.google.com/spreadsheets/d/1HivWFNlsDOD8tJBuRZL8KWn6Ch1tBULqaAGgIY4RPzY/edit#gid=1770539009", reason: "no brackets found"},
     {name: "Girls 16U D2 Copper Finals", tab: "Copper Finals", book: "G16u D2", url: "https://docs.google.com/spreadsheets/d/1HivWFNlsDOD8tJBuRZL8KWn6Ch1tBULqaAGgIY4RPzY/edit#gid=1573568918", reason: "no brackets found"},
     {name: "Girls 16U D2 Play-in + Seeding", tab: "Play-in + Seeding", book: "G16u D2", url: "https://docs.google.com/spreadsheets/d/1HivWFNlsDOD8tJBuRZL8KWn6Ch1tBULqaAGgIY4RPzY/edit#gid=2044276161", reason: "no brackets found"},
     {name: "Girls 16U D2 Copper Pools", tab: "Copper Pools", book: "G16u D2", url: "https://docs.google.com/spreadsheets/d/1HivWFNlsDOD8tJBuRZL8KWn6Ch1tBULqaAGgIY4RPzY/edit#gid=1075471882", reason: "no pools found"},
-    {name: "Girls 14U D1 Gold & Silver", tab: "Gold & Silver", book: "G14u D1", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=1087476426", reason: "no brackets found"},
-    {name: "Girls 14U D1 Bronze", tab: "Bronze", book: "G14u D1", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=1401360125", reason: "no brackets found"},
     {name: "Girls 14U D1 Copper", tab: "Copper", book: "G14u D1", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=1770539009", reason: "no brackets found"},
     {name: "Girls 14U D1 Iron Finals", tab: "Iron Finals", book: "G14u D1", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=1573568918", reason: "no brackets found"},
     {name: "Girls 14U D1 Iron Pools", tab: "Iron Pools", book: "G14u D1", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=588366288", reason: "no pools found"},
@@ -260,14 +265,11 @@ const SAVED_LIST = {
     {name: "Girls 14U D2 Seeding + Qualifier", tab: "Seeding + Qualifier", book: "G14u D2", url: "https://docs.google.com/spreadsheets/d/169nDYxrkz_rEJBe8t6NcW3GAvGNCZaWckcvqKFkgG9E/edit#gid=2044276161", reason: "no brackets found"},
     {name: "Girls 12U Gold", tab: "Gold", book: "G12u", url: "https://docs.google.com/spreadsheets/d/1HuyU-aopbuzSEb6ozKCgbMwKH-UstOsQZx75vDCwe84/edit#gid=611747316", reason: "no brackets found"},
     {name: "Girls 12U Copper", tab: "Copper", book: "G12u", url: "https://docs.google.com/spreadsheets/d/1HuyU-aopbuzSEb6ozKCgbMwKH-UstOsQZx75vDCwe84/edit#gid=609020173", reason: "no brackets found"},
-    {name: "Boys 18U Gold & Silver", tab: "Gold & Silver", book: "B18u", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=1087476426", reason: "no brackets found"},
-    {name: "Boys 18U Bronze", tab: "Bronze", book: "B18u", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=1401360125", reason: "no brackets found"},
     {name: "Boys 18U Copper", tab: "Copper", book: "B18u", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=1770539009", reason: "no brackets found"},
     {name: "Boys 18U Iron Finals", tab: "Iron Finals", book: "B18u", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=1819780648", reason: "no brackets found"},
     {name: "Boys 18U Iron Pools", tab: "Iron Pools", book: "B18u", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=353459446", reason: "no pools found"},
     {name: "Boys 16U Gold", tab: "Gold", book: "B16u", url: "https://docs.google.com/spreadsheets/d/1FQrMjn4s7hQNWJOZfYgqsuh4XPYlM_A_GvHb95ZzLxk/edit#gid=609020173", reason: "no brackets found"},
-    {name: "Boys 16U Consolation Pool", tab: "Consolation Pool", book: "B16u", url: "https://docs.google.com/spreadsheets/d/1FQrMjn4s7hQNWJOZfYgqsuh4XPYlM_A_GvHb95ZzLxk/edit#gid=1936931201", reason: "no pools found"},
-    {name: "Boys 14U Gold", tab: "Gold", book: "B14u", url: "https://docs.google.com/spreadsheets/d/12w1jqg103zOBc_ZhLLffDf7si3jvRgTJxIHlLHmtFJ4/edit#gid=1815414200", reason: "no brackets found"}
+    {name: "Boys 16U Consolation Pool", tab: "Consolation Pool", book: "B16u", url: "https://docs.google.com/spreadsheets/d/1FQrMjn4s7hQNWJOZfYgqsuh4XPYlM_A_GvHb95ZzLxk/edit#gid=1936931201", reason: "no pools found"}
   ]
 };
 const DIVISIONS = SAVED_LIST.divs;
@@ -386,7 +388,9 @@ function parseBrackets(rows) {
   const at = (r, c) => (rows[r] && rows[r][c]) || "";
   const isTime = v => /^\d{1,2}:\d{2}\s*[ap]\.?\s*m\.?$/i.test(v);
   const isScore = v => /^\d+\s*-\s*\d+(\s*,\s*\d+\s*-\s*\d+)*$/.test(v);
-  const isTeam = (r, c) => at(r, c) && /#\s*\d+\s*$/.test(at(r, c - 1));
+  // A team cell has its seed in the column to its left: "8A #1" (Gold Ball), "1" (Silver, Bronze) or "4A" (champion games)
+  const isSeed = v => /#\s*\d+\s*$/.test(v) || /^\d{1,2}[A-Z]?$/i.test(v);
+  const isTeam = (r, c) => at(r, c) && !isScore(at(r, c)) && !isTime(at(r, c)) && isSeed(at(r, c - 1));
   const cells = [];
   rows.forEach((row, r) => row.forEach((v, c) => { if (v) cells.push({ r, c, v }); }));
 
@@ -402,13 +406,13 @@ function parseBrackets(rows) {
       const rr = r + k; if (isTime(at(rr, c))) break;
       if (isTeam(rr, c)) { m.bottom = { team: at(rr, c), seed: at(rr, c - 1), r: rr }; break; }
     }
-    // The score is written under the team that won, from the winner's side
+    // The score is written under the team that won, from the winner's side (sometimes a row lower)
     ["top", "bottom"].forEach(side => {
-      const t = m[side];
-      if (t && isScore(at(t.r + 1, c))) {
-        m.winner = side;
-        m.sets = at(t.r + 1, c).split(",").map(x => x.trim().split(/\s*-\s*/).map(Number));
-      }
+      const t = m[side]; if (!t) return;
+      const sr = isScore(at(t.r + 1, c)) ? t.r + 1 : !at(t.r + 1, c) && isScore(at(t.r + 2, c)) ? t.r + 2 : -1;
+      if (sr < 0) return;
+      m.winner = side;
+      m.sets = at(sr, c).split(",").map(x => x.trim().split(/\s*-\s*/).map(Number));
     });
     return m;
   });
@@ -420,7 +424,9 @@ function parseBrackets(rows) {
     let champion = "";
     for (let k = 1; k <= 3 && !champion; k++) champion = at(x.r + k, x.c);
     const title = x.v.replace(/\s*champions?$/i, "");
-    const label = (title.match(/\b\d+A\b/) || [])[0] || title.split(" ")[0];
+    // Button label: the class ("8A"), else what the title adds to the age and division ("Silver", "Bronze Ball")
+    const rest = title.replace(/^[GB]\s*\d+\s*u\s+|^[GB]\s*JV\s+/i, "").replace(/^(Division\s+\S+|D\d)\s*/i, "").trim();
+    const label = (title.match(/\b\d+A\b/) || [])[0] || rest || "Champion";
     return { r: x.r, title, label, key: label + "@" + x.r, champion, matches: [], results: [], complete: false, award: "" };
   });
   if (!groups.length) groups = [{ r: 0, title: "Bracket", label: "Bracket", key: "b0", champion: "", matches: [], results: [], complete: false, award: "" }];
@@ -469,16 +475,49 @@ function parseBrackets(rows) {
     }
   });
 
+  // Placement titles ("G18u Division I Bronze 3rd Place") with the team a row or two below
+  // (match names like "G18u D1 Bronze 3rd" sit two rows under a time cell and aren't titles)
+  const nameCells = new Set(matches.map(m => (m.r + 2) + ":" + m.c));
+  const placements = cells.filter(x => /\b(\d+)(st|nd|rd|th)(\s+place)?$/i.test(x.v) && x.v.length > 10 && !nameCells.has(x.r + ":" + x.c)).map(x => {
+    let team = ""; for (let k = 1; k <= 3 && !team; k++) team = at(x.r + k, x.c);
+    return { r: x.r, c: x.c, rank: +x.v.match(/\b(\d+)(st|nd|rd|th)(\s+place)?$/i)[1], team };
+  }).filter(x => x.team);
+
+  /* Rounds come from the match names when every match has a known kind ("Gold Semi",
+     "Bronze Con Semi", "SILVER BALL", "Bronze 3rd"...): Quarterfinals, Semifinals and
+     Final make the bracket, and 3rd place and the consolation side are listed below it.
+     Otherwise rounds are the columns, rightmost being the Final. */
+  const KINDS = [
+    { k: "quarter", re: /quarter/i, name: "Quarterfinals", next: "semi" },
+    { k: "consemi", re: /\bcon(s|solation)?\.?\s*semi/i, name: "Consolation semifinals", extra: true, next: "5th" },
+    { k: "semi", re: /semi/i, name: "Semifinals", next: "final" },
+    { k: "3rd", re: /\b3rd\b/i, name: "3rd place", extra: true },
+    { k: "5th", re: /\b5th\b/i, name: "5th place", extra: true },
+    { k: "7th", re: /\b7th\b/i, name: "7th place", extra: true },
+    { k: "final", re: /\bball\b|champ|undisputed|final/i, name: "Final" }
+  ];
+  const kindOf = m => KINDS.find(x => x.re.test(m.name));
+  const ORDER = ["quarter", "semi", "final", "3rd", "consemi", "5th", "7th"];
   const roundNames = ["Final", "Semifinals", "Quarterfinals", "Round of 16", "Round of 32"];
   groups.forEach(g => {
-    const cols = [...new Set(g.matches.map(m => m.c))].sort((a, b) => a - b);
-    g.rounds = cols.map((c, i) => ({
-      name: roundNames[cols.length - 1 - i] || `Round ${i + 1}`,
-      matches: g.matches.filter(m => m.c === c).sort((a, b) => a.r - b.r)
-    }));
-    // If a score wasn't found, a team that appears in the next round still counts as the winner
-    g.rounds.forEach((rd, i) => {
-      const later = g.rounds[i + 1]; if (!later) return;
+    const byRow = list => list.sort((a, b) => a.r - b.r || a.c - b.c);
+    let all;
+    if (g.matches.length && g.matches.every(kindOf)) {
+      all = ORDER.map(k => KINDS.find(x => x.k === k)).map(kd => ({ kind: kd, name: kd.name, extra: !!kd.extra,
+        matches: byRow(g.matches.filter(m => kindOf(m) === kd)) })).filter(rd => rd.matches.length);
+    } else {
+      const cols = [...new Set(g.matches.map(m => m.c))].sort((a, b) => a - b);
+      all = cols.map((c, i) => ({ name: roundNames[cols.length - 1 - i] || `Round ${i + 1}`, extra: false,
+        matches: byRow(g.matches.filter(m => m.c === c)) }));
+    }
+    g.rounds = all.filter(rd => !rd.extra);
+    g.extra = all.filter(rd => rd.extra);
+    g.named = all.length > 0 && all.every(rd => rd.kind);
+    // If a score wasn't found, a team that appears in the round its winner moves on to still counts as the winner
+    // (by kind, so a loser moving to the consolation side isn't mistaken for the winner)
+    all.forEach((rd, i) => {
+      const later = rd.kind ? all.find(x => x.kind && x.kind.k === rd.kind.next) : (!rd.extra && g.rounds[g.rounds.indexOf(rd) + 1]);
+      if (!later) return;
       const ahead = new Set(later.matches.flatMap(m => [m.top, m.bottom]).filter(Boolean).map(t => t.team));
       rd.matches.forEach(m => {
         if (m.winner) return;
@@ -488,8 +527,22 @@ function parseBrackets(rows) {
     });
     const fin = g.rounds.length ? g.rounds[g.rounds.length - 1].matches[0] : null;
     if (!g.champion && fin && fin.winner) g.champion = fin[fin.winner].team;
+    /* No results table: build one from the final and the 3rd/5th/7th place matches
+       (winner takes that place, loser the next), falling back to the placement titles
+       ("… 3rd Place" with the team below) for a match without a score */
+    if (!g.results.length && g.champion && g.extra.length) {
+      const mine = placements.filter(x => groupAt(x.r, x.c, "") === g);
+      const places = {};
+      const put = (rank, m) => {
+        if (m && m.winner) { places[rank] = m[m.winner].team; const l = m[m.winner === "top" ? "bottom" : "top"]; if (l) places[rank + 1] = l.team; }
+        else { const t = mine.find(x => x.rank === rank); if (t) places[rank] = t.team; }
+      };
+      places[1] = g.champion; put(1, fin);
+      [3, 5, 7].forEach(n => { const rd = all.find(x => x.kind && x.kind.k === n + (n === 3 ? "rd" : "th")); put(n, rd && rd.matches[0]); });
+      g.results = Object.keys(places).map(Number).sort((a, b) => a - b).map(n => ({ rank: String(n), team: places[n], adv: "" }));
+    }
     g.state = g.complete || g.champion ? "final" : g.matches.some(m => m.winner) ? "live" : "new";
-    const firstOpen = g.rounds.flatMap(rd => rd.matches).find(m => !m.winner && m.top && m.bottom);
+    const firstOpen = all.flatMap(rd => rd.matches).find(m => !m.winner && m.top && m.bottom);
     if (firstOpen) firstOpen.next = true;
     g.teams = [...new Set(g.matches.flatMap(m => [m.top, m.bottom]).filter(Boolean).map(t => t.team))];
   });
@@ -707,10 +760,15 @@ function tabName(base, title, type) {
 }
 const SKIP_TABS = /^(home|ref|referees?|instructions?)$/i;
 
-// A tab counts only if the parser finds real content in it, not just time cells
+/* A tab counts only if the parser finds real content in it, not just time cells. For
+   brackets, every one on the tab must also be a layout the parser is known to read:
+   rounds named from the match names, each round half the size of the one before
+   (Gold Ball, Silver, Bronze, Gold & Silver, GBSS). Copper and brackets with byes don't pass. */
 function tabReadable(d, rows) {
   if (d.type === "pools") return parsePools(rows).pools.some(p => p.teams.length >= 2);
-  return parseBrackets(rows).brackets.some(g => g.key !== "b0" && g.matches.some(m => m.top || m.bottom));
+  const list = parseBrackets(rows).brackets.filter(g => g.key !== "b0" && g.matches.length);
+  const halves = g => g.rounds.every((rd, i) => !g.rounds[i + 1] || rd.matches.length === 2 * g.rounds[i + 1].matches.length);
+  return list.some(g => g.matches.some(m => m.top || m.bottom)) && list.every(g => g.named && halves(g));
 }
 
 async function discoverDivisions(progress) {
@@ -793,7 +851,9 @@ function tagsOf(d) {
     (n.match(/\bDivision\s+(IV|I{1,3})\b/gi) || []).forEach(x => levels.push("D" + roman[x.split(/\s+/)[1].toUpperCase()]));
   }
   levels = [...new Set(levels)];
-  const bracket = d.bracket || (/gbss/i.test(n) ? "GBSS" : /gold/i.test(n) ? "Gold" : /silver/i.test(n) ? "Silver" : /bronze/i.test(n) ? "Bronze" : /copper/i.test(n) ? "Copper" : /iron/i.test(n) ? "Iron" : "");
+  // A "Gold & Silver" tab holds both brackets, so it gets both tags
+  const bracket = d.bracket ? [d.bracket] : /gbss/i.test(n) ? ["GBSS"] : /gold\s*(&|and)\s*silver/i.test(n) ? ["Gold", "Silver"]
+    : ["Gold", "Silver", "Bronze", "Copper", "Iron"].filter(x => new RegExp(x, "i").test(n)).slice(0, 1);
   return (d._tags = { gender, age, level: levels, bracket });
 }
 const FILTERS = [
@@ -805,7 +865,7 @@ const FILTERS = [
 const filtersFor = stage => (settings.filters && settings.filters[stage]) || {};
 function fits(d, f, skip) {
   const t = tagsOf(d);
-  return Object.keys(f).every(k => k === skip || !f[k] || (k === "level" ? t.level.includes(f[k]) : t[k] === f[k]));
+  return Object.keys(f).every(k => k === skip || !f[k] || (Array.isArray(t[k]) ? t[k].includes(f[k]) : t[k] === f[k]));
 }
 function filterOptions(stage, key) {
   const f = filtersFor(stage);
@@ -1009,7 +1069,8 @@ function renderBrackets(s, html) {
       const won = m.winner === side, lost = m.winner && !won;
       const sets = m.sets.map(([w, l]) => won ? `<span class="w">${w}</span>` : `<span>${l}</span>`).join("");
       if (!t) return `<div class="side none tbd"><span class="nm"><span class="seed"></span>To be decided</span><span class="sets"></span></div>`;
-      return `<div class="side ${won ? "won" : lost ? "lost" : "none"}${mine(t.team) ? " mine" : ""}"><span class="nm"><span class="seed">${esc(t.seed)}</span>${esc(t.team)}</span><span class="sets">${m.winner ? sets : ""}</span></div>`;
+      const seed = /^\d+$/.test(t.seed) ? "#" + t.seed : t.seed;
+      return `<div class="side ${won ? "won" : lost ? "lost" : "none"}${mine(t.team) ? " mine" : ""}"><span class="nm"><span class="seed">${esc(seed)}</span>${esc(t.team)}</span><span class="sets">${m.winner ? sets : ""}</span></div>`;
     };
     const when = [m.day, m.time].filter(Boolean).join(" ");
     const tag = m.winner ? `<span class="tag final">Final</span>` : m.next ? `<span class="tag next">Up next</span>` : "";
@@ -1025,16 +1086,22 @@ function renderBrackets(s, html) {
 
   const rounds = g.rounds.map(rd => `<div class="round"><h3>${esc(rd.name)}</h3><div class="slots">${
     rd.matches.map((m, i) => matchCard(m, i, rd.name)).join("")}</div></div>`).join("");
+  // 3rd place and the consolation side, below the bracket
+  const extra = (g.extra || []).map(rd => `<div class="round"><h3>${esc(rd.name)}</h3><div class="slots">${
+    rd.matches.map((m, i) => matchCard(m, i, rd.name)).join("")}</div></div>`).join("");
 
   const champ = g.champion ? `<div class="champ"><span class="lbl">Champion</span><span class="who">${esc(g.champion)}</span>${g.award ? `<span class="award">Wins ${esc(g.award)}</span>` : ""}</div>` : "";
 
-  const results = g.results.length ? `<section class="card"><h3>Results</h3><table><thead><tr><th></th><th>Team</th><th>Next</th></tr></thead><tbody>${
-    g.results.map((r, i) => `<tr class="${mine(r.team) ? "mine" : ""}"><td class="rank">${i + 1}</td><td><span class="team">${esc(r.team)}</span></td><td>${esc(r.adv)}</td></tr>`).join("")
-  }</tbody></table><p class="note">Final placement and where each team plays next, from the tournament sheet.</p></section>` : "";
+  // Silver and Bronze tabs have no results table, so theirs is built from the matches and has no "Next" column
+  const hasNext = g.results.some(r => r.adv);
+  const results = g.results.length ? `<section class="card"><h3>Results</h3><table><thead><tr><th></th><th>Team</th>${hasNext ? "<th>Next</th>" : ""}</tr></thead><tbody>${
+    g.results.map((r, i) => `<tr class="${mine(r.team) ? "mine" : ""}"><td class="rank">${esc(r.rank || i + 1)}</td><td><span class="team">${esc(r.team)}</span></td>${hasNext ? `<td>${esc(r.adv)}</td>` : ""}</tr>`).join("")
+  }</tbody></table><p class="note">${hasNext ? "Final placement and where each team plays next, from the tournament sheet." : "Final placement from the match results."}</p></section>` : "";
 
   html += `<div class="pool-head"><h2>${esc(g.title)}</h2>${badge}</div>
     ${champ}
     <div class="bracket" style="--rounds:${g.rounds.length}">${rounds}</div>
+    ${extra ? `<h2 class="subhead">Placement matches</h2><div class="bracket placements">${extra}</div>` : ""}
     ${results}
     ${model.note ? `<footer>${esc(model.note)}</footer>` : ""}`;
   $("main").innerHTML = html;
