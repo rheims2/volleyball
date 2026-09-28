@@ -196,16 +196,81 @@ const CONFIG_SHEET = VIEWER_CONFIG.divisionsSheet || "";
    lives in config.js as sheetsApiKey. Scores never use the API. */
 const API_KEY = VIEWER_CONFIG.sheetsApiKey || "";
 const INDEX_SHEET = VIEWER_CONFIG.indexSheet || "https://docs.google.com/spreadsheets/d/1ONzz5XqL-buAxvHXNHfuTRtDayzaM10Cy7KlOdt5GL0/edit?gid=1891963095#gid=1891963095";
-const DISCOVERY_HOURS = 6;
 
-/* Built-in list, used when CONFIG_SHEET is blank or can't be reached.
+/* The division list, saved from the NCHVC "Nationals Bracket Index" (tabs checked
+   readable by the parsers). Visitors use this list, so they never call the Sheets
+   API. "Update division list" on the Add a division page rebuilds it through the
+   API in that browser only; to update it for everyone, regenerate this block.
    type is "pools" for pool play tabs or "brackets" for bracket tabs. */
-const DIVISIONS = [
-  { id: "g18-d12", type: "pools", name: "Girls 18U D1/D2", url: "https://docs.google.com/spreadsheets/d/1lsy6Q5IjnCoR1BbJcePE1zkkt9jAKc7YEBFBCrjkcxM/edit?gid=1936931201#gid=1936931201" },
-  { id: "g18-d34", type: "pools", name: "Girls 18U D3/D4", url: "https://docs.google.com/spreadsheets/d/1V6l2tdGT82u8eNAnzpHv7eP11dUPNtRsUpSB-bMaT-k/edit?gid=1936931201#gid=1936931201" },
-  { id: "g16-d12", type: "pools", name: "Girls 16U D1/D2", url: "https://docs.google.com/spreadsheets/d/19aUPwTWsLqK9-DmQZtYWyjhF5Il1y1qgt7EOTFuIPtU/edit?gid=1936931201#gid=1936931201" },
-  { id: "g18-d1-gold", type: "brackets", name: "Girls 18U D1 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit?gid=1394730142#gid=1394730142" }
-];
+const SAVED_LIST = {
+  at: 1790556777048, // 2026-09-28
+  event: "2025 NCHVC", books: 16,
+  divs: [
+    {id: "pools:girls-18u-d1-d2", type: "pools", name: "Girls 18U D1/D2", url: "https://docs.google.com/spreadsheets/d/1lsy6Q5IjnCoR1BbJcePE1zkkt9jAKc7YEBFBCrjkcxM/edit#gid=1936931201"},
+    {id: "brackets:girls-18u-d1-gold-ball", type: "brackets", name: "Girls 18U D1 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit#gid=1394730142"},
+    {id: "brackets:girls-18u-d2-gold-ball", type: "brackets", name: "Girls 18U D2 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1fFVIoxbWJLc44mSb3gGy8ahHl1qoovYZbpEUGbX4S1Y/edit#gid=29396548"},
+    {id: "pools:girls-18u-d3-d4", type: "pools", name: "Girls 18U D3/D4", url: "https://docs.google.com/spreadsheets/d/1V6l2tdGT82u8eNAnzpHv7eP11dUPNtRsUpSB-bMaT-k/edit#gid=1936931201"},
+    {id: "brackets:girls-18u-d3-gold-ball", type: "brackets", name: "Girls 18U D3 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1h2bDdmgCMF6ps0TtL1Nqqq98MzU4GmRxTUa5ALU3tMc/edit#gid=29396548"},
+    {id: "brackets:girls-18u-d4-gold-ball", type: "brackets", name: "Girls 18U D4 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1oiE5cb-vFbiqPaJ1C4D3FqZTmHHSulph-WtHVcF2k6g/edit#gid=29396548"},
+    {id: "pools:girls-jv", type: "pools", name: "Girls JV", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=583227128"},
+    {id: "brackets:girls-jv-gold-ball", type: "brackets", name: "Girls JV Gold Ball", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=890607382"},
+    {id: "pools:girls-16u-d1-d2", type: "pools", name: "Girls 16U D1/D2", url: "https://docs.google.com/spreadsheets/d/19aUPwTWsLqK9-DmQZtYWyjhF5Il1y1qgt7EOTFuIPtU/edit#gid=1936931201"},
+    {id: "brackets:girls-16u-d1-gold-ball", type: "brackets", name: "Girls 16U D1 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1_s_w8XDmsrX_pT_5ts1wwlibVUMS85PvKqYfF39a2n4/edit#gid=29396548"},
+    {id: "pools:girls-14u-d1", type: "pools", name: "Girls 14U D1", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=583227128"},
+    {id: "brackets:girls-14u-d1-gold-ball", type: "brackets", name: "Girls 14U D1 Gold Ball", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=890607382"},
+    {id: "pools:girls-14u-d2", type: "pools", name: "Girls 14U D2", url: "https://docs.google.com/spreadsheets/d/169nDYxrkz_rEJBe8t6NcW3GAvGNCZaWckcvqKFkgG9E/edit#gid=633157092"},
+    {id: "pools:girls-12u", type: "pools", name: "Girls 12U", url: "https://docs.google.com/spreadsheets/d/1HuyU-aopbuzSEb6ozKCgbMwKH-UstOsQZx75vDCwe84/edit#gid=1936931201"},
+    {id: "pools:boys-18u", type: "pools", name: "Boys 18U", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=583227128"},
+    {id: "brackets:boys-18u-gold-ball", type: "brackets", name: "Boys 18U Gold Ball", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=890607382"},
+    {id: "pools:boys-16u", type: "pools", name: "Boys 16U", url: "https://docs.google.com/spreadsheets/d/1FQrMjn4s7hQNWJOZfYgqsuh4XPYlM_A_GvHb95ZzLxk/edit#gid=162767307"},
+    {id: "pools:boys-14u", type: "pools", name: "Boys 14U", url: "https://docs.google.com/spreadsheets/d/12w1jqg103zOBc_ZhLLffDf7si3jvRgTJxIHlLHmtFJ4/edit#gid=150219924"}
+  ],
+  failed: [
+    {name: "Girls 18U D1 Bronze", tab: "D1 Bronze", book: "G18u D1", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit#gid=170040749", reason: "no brackets found"},
+    {name: "Girls 18U D1 Silver", tab: "D1 Silver", book: "G18u D1", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit#gid=1536733858", reason: "no brackets found"},
+    {name: "Girls 18U D1 GBSS", tab: "D1 GBSS", book: "G18u D1", url: "https://docs.google.com/spreadsheets/d/1S4kuEOvai3krKSKigtO2rsWSspxDse0SRshRxYuf41o/edit#gid=1815414200", reason: "no brackets found"},
+    {name: "Girls 18U D2 Copper", tab: "D2 Copper", book: "G18u D2", url: "https://docs.google.com/spreadsheets/d/1fFVIoxbWJLc44mSb3gGy8ahHl1qoovYZbpEUGbX4S1Y/edit#gid=22559099", reason: "no brackets found"},
+    {name: "Girls 18U D2 Bronze", tab: "D2 Bronze", book: "G18u D2", url: "https://docs.google.com/spreadsheets/d/1fFVIoxbWJLc44mSb3gGy8ahHl1qoovYZbpEUGbX4S1Y/edit#gid=1542724545", reason: "no brackets found"},
+    {name: "Girls 18U D2 Gold & Silver", tab: "D2 Gold & Silver", book: "G18u D2", url: "https://docs.google.com/spreadsheets/d/1fFVIoxbWJLc44mSb3gGy8ahHl1qoovYZbpEUGbX4S1Y/edit#gid=1229488211", reason: "no brackets found"},
+    {name: "Girls 18U D3 Copper", tab: "D3 Copper", book: "G18u D3", url: "https://docs.google.com/spreadsheets/d/1h2bDdmgCMF6ps0TtL1Nqqq98MzU4GmRxTUa5ALU3tMc/edit#gid=22559099", reason: "no brackets found"},
+    {name: "Girls 18U D3 Bronze", tab: "D3 Bronze", book: "G18u D3", url: "https://docs.google.com/spreadsheets/d/1h2bDdmgCMF6ps0TtL1Nqqq98MzU4GmRxTUa5ALU3tMc/edit#gid=1542724545", reason: "no brackets found"},
+    {name: "Girls 18U D3 Gold & Silver", tab: "D3 Gold & Silver", book: "G18u D3", url: "https://docs.google.com/spreadsheets/d/1h2bDdmgCMF6ps0TtL1Nqqq98MzU4GmRxTUa5ALU3tMc/edit#gid=1229488211", reason: "no brackets found"},
+    {name: "Girls 18U D4 Gold & Silver", tab: "D4 Gold & Silver", book: "G18u D4", url: "https://docs.google.com/spreadsheets/d/1oiE5cb-vFbiqPaJ1C4D3FqZTmHHSulph-WtHVcF2k6g/edit#gid=1229488211", reason: "no brackets found"},
+    {name: "Girls 18U D4 Bronze", tab: "D4 Bronze", book: "G18u D4", url: "https://docs.google.com/spreadsheets/d/1oiE5cb-vFbiqPaJ1C4D3FqZTmHHSulph-WtHVcF2k6g/edit#gid=1542724545", reason: "no brackets found"},
+    {name: "Girls 18U D4 Copper", tab: "D4 Copper", book: "G18u D4", url: "https://docs.google.com/spreadsheets/d/1oiE5cb-vFbiqPaJ1C4D3FqZTmHHSulph-WtHVcF2k6g/edit#gid=22559099", reason: "no brackets found"},
+    {name: "Girls JV Gold & Silver", tab: "Gold & Silver", book: "GJV", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=1087476426", reason: "no brackets found"},
+    {name: "Girls JV Iron Finals", tab: "Iron Finals", book: "GJV", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=1573568918", reason: "no brackets found"},
+    {name: "Girls JV Copper", tab: "Copper", book: "GJV", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=1770539009", reason: "no brackets found"},
+    {name: "Girls JV Bronze", tab: "Bronze", book: "GJV", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=1401360125", reason: "no brackets found"},
+    {name: "Girls JV Iron Pools", tab: "Iron Pools", book: "GJV", url: "https://docs.google.com/spreadsheets/d/1__H5n27vKliBetS2sOsKz7XuOPjHE67nCUQZ3H6sSVc/edit#gid=1215706211", reason: "no pools found"},
+    {name: "Girls 16U D1 Copper", tab: "Copper", book: "G16u D1", url: "https://docs.google.com/spreadsheets/d/1_s_w8XDmsrX_pT_5ts1wwlibVUMS85PvKqYfF39a2n4/edit#gid=22559099", reason: "no brackets found"},
+    {name: "Girls 16U D1 Bronze", tab: "Bronze", book: "G16u D1", url: "https://docs.google.com/spreadsheets/d/1_s_w8XDmsrX_pT_5ts1wwlibVUMS85PvKqYfF39a2n4/edit#gid=1542724545", reason: "no brackets found"},
+    {name: "Girls 16U D1 Gold & Silver", tab: "Gold & Silver", book: "G16u D1", url: "https://docs.google.com/spreadsheets/d/1_s_w8XDmsrX_pT_5ts1wwlibVUMS85PvKqYfF39a2n4/edit#gid=1229488211", reason: "no brackets found"},
+    {name: "Girls 16U D2 Gold", tab: "Gold Bracket", book: "G16u D2", url: "https://docs.google.com/spreadsheets/d/1HivWFNlsDOD8tJBuRZL8KWn6Ch1tBULqaAGgIY4RPzY/edit#gid=1770539009", reason: "no brackets found"},
+    {name: "Girls 16U D2 Copper Finals", tab: "Copper Finals", book: "G16u D2", url: "https://docs.google.com/spreadsheets/d/1HivWFNlsDOD8tJBuRZL8KWn6Ch1tBULqaAGgIY4RPzY/edit#gid=1573568918", reason: "no brackets found"},
+    {name: "Girls 16U D2 Play-in + Seeding", tab: "Play-in + Seeding", book: "G16u D2", url: "https://docs.google.com/spreadsheets/d/1HivWFNlsDOD8tJBuRZL8KWn6Ch1tBULqaAGgIY4RPzY/edit#gid=2044276161", reason: "no brackets found"},
+    {name: "Girls 16U D2 Copper Pools", tab: "Copper Pools", book: "G16u D2", url: "https://docs.google.com/spreadsheets/d/1HivWFNlsDOD8tJBuRZL8KWn6Ch1tBULqaAGgIY4RPzY/edit#gid=1075471882", reason: "no pools found"},
+    {name: "Girls 14U D1 Gold & Silver", tab: "Gold & Silver", book: "G14u D1", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=1087476426", reason: "no brackets found"},
+    {name: "Girls 14U D1 Bronze", tab: "Bronze", book: "G14u D1", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=1401360125", reason: "no brackets found"},
+    {name: "Girls 14U D1 Copper", tab: "Copper", book: "G14u D1", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=1770539009", reason: "no brackets found"},
+    {name: "Girls 14U D1 Iron Finals", tab: "Iron Finals", book: "G14u D1", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=1573568918", reason: "no brackets found"},
+    {name: "Girls 14U D1 Iron Pools", tab: "Iron Pools", book: "G14u D1", url: "https://docs.google.com/spreadsheets/d/1DJp4OP2DR-bwwGxTzibaYU72STGpiQoVFXZ2MVEdZAk/edit#gid=588366288", reason: "no pools found"},
+    {name: "Girls 14U D2 Gold", tab: "Gold Bracket", book: "G14u D2", url: "https://docs.google.com/spreadsheets/d/169nDYxrkz_rEJBe8t6NcW3GAvGNCZaWckcvqKFkgG9E/edit#gid=1770539009", reason: "no brackets found"},
+    {name: "Girls 14U D2 Consolation Pool", tab: "Consolation Pool", book: "G14u D2", url: "https://docs.google.com/spreadsheets/d/169nDYxrkz_rEJBe8t6NcW3GAvGNCZaWckcvqKFkgG9E/edit#gid=1215706211", reason: "no pools found"},
+    {name: "Girls 14U D2 Seeding + Qualifier", tab: "Seeding + Qualifier", book: "G14u D2", url: "https://docs.google.com/spreadsheets/d/169nDYxrkz_rEJBe8t6NcW3GAvGNCZaWckcvqKFkgG9E/edit#gid=2044276161", reason: "no brackets found"},
+    {name: "Girls 12U Gold", tab: "Gold", book: "G12u", url: "https://docs.google.com/spreadsheets/d/1HuyU-aopbuzSEb6ozKCgbMwKH-UstOsQZx75vDCwe84/edit#gid=611747316", reason: "no brackets found"},
+    {name: "Girls 12U Copper", tab: "Copper", book: "G12u", url: "https://docs.google.com/spreadsheets/d/1HuyU-aopbuzSEb6ozKCgbMwKH-UstOsQZx75vDCwe84/edit#gid=609020173", reason: "no brackets found"},
+    {name: "Boys 18U Gold & Silver", tab: "Gold & Silver", book: "B18u", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=1087476426", reason: "no brackets found"},
+    {name: "Boys 18U Bronze", tab: "Bronze", book: "B18u", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=1401360125", reason: "no brackets found"},
+    {name: "Boys 18U Copper", tab: "Copper", book: "B18u", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=1770539009", reason: "no brackets found"},
+    {name: "Boys 18U Iron Finals", tab: "Iron Finals", book: "B18u", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=1819780648", reason: "no brackets found"},
+    {name: "Boys 18U Iron Pools", tab: "Iron Pools", book: "B18u", url: "https://docs.google.com/spreadsheets/d/1defxZ_BPod3uQEyM8PHFLLvlc1SrBGHcs6ApjNquEAk/edit#gid=353459446", reason: "no pools found"},
+    {name: "Boys 16U Gold", tab: "Gold", book: "B16u", url: "https://docs.google.com/spreadsheets/d/1FQrMjn4s7hQNWJOZfYgqsuh4XPYlM_A_GvHb95ZzLxk/edit#gid=609020173", reason: "no brackets found"},
+    {name: "Boys 16U Consolation Pool", tab: "Consolation Pool", book: "B16u", url: "https://docs.google.com/spreadsheets/d/1FQrMjn4s7hQNWJOZfYgqsuh4XPYlM_A_GvHb95ZzLxk/edit#gid=1936931201", reason: "no pools found"},
+    {name: "Boys 14U Gold", tab: "Gold", book: "B14u", url: "https://docs.google.com/spreadsheets/d/12w1jqg103zOBc_ZhLLffDf7si3jvRgTJxIHlLHmtFJ4/edit#gid=1815414200", reason: "no brackets found"}
+  ]
+};
+const DIVISIONS = SAVED_LIST.divs;
 const AUTO_SECONDS = 60;
 const KEY = "nchvc-pool-viewer-v2";
 
@@ -542,8 +607,12 @@ const eventName = () => (configDivs && configDivs.event) || (discovered && disco
 
 /* ---------------- division list: NCHVC index + divisions sheet ---------------- */
 let discovered = loadDiscovered();     // { at, divs, failed, event } from the NCHVC index
-let listCache = null, mergeWarning = "", discoveryWarning = "", discoveryError = "", discovery = null;
-function loadDiscovered() { try { const c = JSON.parse(localStorage.getItem(KEY + "-discovered")); return c && c.divs && c.divs.length ? c : null; } catch (e) { return null; } }
+let listCache = null, mergeWarning = "", discoveryError = "", discovery = null;
+// A list rebuilt in this browser wins until a newer one is saved in the viewer
+function loadDiscovered() {
+  let c = null; try { c = JSON.parse(localStorage.getItem(KEY + "-discovered")); } catch (e) {}
+  return c && c.divs && c.divs.length && c.at > SAVED_LIST.at ? c : SAVED_LIST;
+}
 const baseDivisions = () => listCache || (listCache = buildList());
 
 /* Rows in the divisions sheet override discovered entries that have the same tab
@@ -680,11 +749,6 @@ async function discoverDivisions(progress) {
   return { at: Date.now(), divs, failed, event, books: links.length };
 }
 
-// Discovery runs at most every DISCOVERY_HOURS per browser, never on score refreshes
-function discoveryDue() {
-  if (!API_KEY || !linkParts(INDEX_SHEET)) return false;
-  return !discovered || Date.now() - discovered.at > DISCOVERY_HOURS * 3600e3;
-}
 function backoffLeft() { try { const b = JSON.parse(localStorage.getItem(KEY + "-backoff")) || {}; return Math.max(0, (b.until || 0) - Date.now()); } catch (e) { return 0; } }
 function setBackoff(hitLimit) {
   let b = {}; try { b = JSON.parse(localStorage.getItem(KEY + "-backoff")) || {}; } catch (e) {}
@@ -693,27 +757,21 @@ function setBackoff(hitLimit) {
   try { localStorage.setItem(KEY + "-backoff", JSON.stringify({ until: Date.now() + wait, wait })); } catch (e) {}
 }
 
-async function updateDivisionList(force) {
-  if (discovery || !API_KEY) return;
-  if (!force && !discoveryDue()) return;
-  if (backoffLeft()) return;
-  // Another open tab of the viewer may already be running it
-  try { const lock = +localStorage.getItem(KEY + "-discovery-lock") || 0; if (!force && Date.now() - lock < 3 * 60e3) return; localStorage.setItem(KEY + "-discovery-lock", String(Date.now())); } catch (e) {}
+// Runs only when someone clicks "Update division list", never on page load or score refreshes
+async function updateDivisionList() {
+  if (discovery || !API_KEY || !linkParts(INDEX_SHEET) || backoffLeft()) return;
   discovery = { done: 0, total: 0 };
   if (setup) renderSetup();
   try {
     const found = await discoverDivisions((done, total) => { discovery = { done, total }; if (setup) renderListStatus(); });
     if (!found.divs.length) throw new Error("none of the index's tabs could be read");
-    discovered = found; listCache = null; discoveryWarning = "";
+    discovered = found; listCache = null; discoveryError = "";
     try { localStorage.setItem(KEY + "-discovered", JSON.stringify(found)); localStorage.removeItem(KEY + "-backoff"); } catch (e) {}
   } catch (e) {
     setBackoff(e.status === 429);
-    const from = configDivs && configDivs.divs.length ? "your divisions sheet" : "the built-in list";
-    discoveryWarning = discovered ? "" : `Couldn't build the division list from the NCHVC index right now, so ${from} is showing.`;
-    discoveryError = e.status === 429 ? "Google asked us to slow down. The viewer will try again later." : e.message;
+    discoveryError = (e.status === 429 ? "Google asked us to slow down." : e.message) + " The saved list is still in use.";
   }
   discovery = null;
-  try { localStorage.removeItem(KEY + "-discovery-lock"); } catch (e) {}
   render();
   const s = slot(current().id);
   if (!setup && current().id !== "__none" && !s.lastUpdated && !s.busy) refresh();
@@ -849,7 +907,7 @@ function renderDivisions() {
     `<button type="button" class="add" id="addDiv" aria-pressed="${setup}">Add a division</button>`;
 }
 
-const notices = () => { baseDivisions(); return [discoveryWarning, configWarning, mergeWarning].filter(Boolean).map(w => `<div class="msg err"><p>${esc(w)}</p></div>`).join(""); };
+const notices = () => { baseDivisions(); return [configWarning, mergeWarning].filter(Boolean).map(w => `<div class="msg err"><p>${esc(w)}</p></div>`).join(""); };
 function render() {
   const d = current(), s = slot(d.id);
   document.title = d.name + (d.type === "brackets" ? " brackets" : " pools"); $("title").textContent = d.name;
@@ -985,23 +1043,24 @@ function renderBrackets(s, html) {
 
 function renderListStatus() {
   const box = $("listStatus"); if (!box) return;
-  const when = t => new Date(t).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+  const when = t => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   const wait = Math.ceil(backoffLeft() / 60e3);
-  let body;
-  if (!API_KEY) body = `<p>The division list comes from the divisions sheet. Add a Google Sheets API key to config.js (sheetsApiKey) to build it from the NCHVC index automatically.</p>`;
+  const f = discovered.failed || [];
+  const local = discovered !== SAVED_LIST;
+  let body = `<p>${discovered.divs.length} tabs from ${discovered.books || "the"} NCHVC division spreadsheets, ${local ? `updated in this browser ${esc(when(discovered.at))}` : `saved from the NCHVC index ${esc(when(discovered.at))}`}.
+      Your divisions sheet can rename or hide any of them (Show = No) and add others.</p>`;
+  if (!API_KEY) body += `<p>To update the list from the NCHVC index here, add a Google Sheets API key to config.js (sheetsApiKey).</p>`;
   else {
-    const f = (discovered && discovered.failed) || [];
-    body = `<p>${discovered ? `Built from the NCHVC index ${esc(when(discovered.at))}: ${discovered.divs.length} tabs from ${discovered.books || "the"} division spreadsheets. It updates itself every ${DISCOVERY_HOURS} hours.` : "Not built from the NCHVC index yet."}
-        Your divisions sheet can rename or hide any of them (Show = No) and add others.</p>
+    body += `<p>If the NCHVC index changes, update the list here. This uses the Google Sheets API and changes the list in this browser only.</p>
       ${discovery ? `<p><strong>Updating…</strong> ${discovery.total ? `checked ${discovery.done} of ${discovery.total} tabs` : "reading the index"}</p>`
         : `<p><button class="ghost" type="button" id="updateList" ${wait ? "disabled" : ""}>Update division list</button>
            ${wait ? ` Google asked us to slow down, so this is paused for about ${wait} minute${wait === 1 ? "" : "s"}.` : ""}</p>`}
-      ${discoveryError && !discovery ? `<p style="color:var(--bad)">Last update failed: ${esc(discoveryError)}</p>` : ""}
-      ${f.length ? `<details><summary>${f.length} tab${f.length === 1 ? "" : "s"} couldn't be read (their layout isn't supported yet)</summary><ul>${
-        f.map(x => `<li>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>` : esc(x.name)}${x.tab ? ` (${esc(x.book)}, tab “${esc(x.tab)}”)` : ""}: ${esc(x.reason)}</li>`).join("")}</ul></details>` : ""}`;
+      ${discoveryError && !discovery ? `<p style="color:var(--bad)">Last update failed: ${esc(discoveryError)}</p>` : ""}`;
   }
+  body += `${f.length ? `<details><summary>${f.length} tab${f.length === 1 ? "" : "s"} couldn't be read (their layout isn't supported yet)</summary><ul>${
+        f.map(x => `<li>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>` : esc(x.name)}${x.tab ? ` (${esc(x.book)}, tab “${esc(x.tab)}”)` : ""}: ${esc(x.reason)}</li>`).join("")}</ul></details>` : ""}`;
   box.innerHTML = `<h2>Division list</h2>${body}`;
-  const b = $("updateList"); if (b) b.addEventListener("click", () => updateDivisionList(true));
+  const b = $("updateList"); if (b) b.addEventListener("click", updateDivisionList);
 }
 
 function renderSetup() {
@@ -1102,7 +1161,7 @@ function setAuto(on) {
 setInterval(updateStatus, 30000);
 if (settings.auto) { $("autoChk").checked = true; setAuto(true); }
 render();
-(async () => { await loadConfig(); render(); refresh(); updateDivisionList(false); })();
+(async () => { await loadConfig(); render(); refresh(); })();
 </script>
 </body>
 </html>
