@@ -20,13 +20,13 @@ A single-page viewer for the NCHVC volleyball Nationals pool play and bracket pl
 
 ## Division discovery (NCHVC index, Sheets API)
 
-The index rarely changes, so discovery is run once and its result is saved in `index.html` as `SAVED_LIST` (the division list plus the tabs that couldn't be read). Visitors use that saved list and never call the API. "Update division list" on the Add a division page reruns discovery in that browser only; the result is kept in localStorage (`…-discovered`) and wins until a newer `SAVED_LIST` ships. To update the list for everyone, rerun discovery and regenerate the `SAVED_LIST` block (last saved 2026-09-28: 18 readable tabs, 42 not).
+The index rarely changes, so discovery is run once and its result is saved in `index.html` as `SAVED_LIST` (the division list plus the tabs that couldn't be read). Visitors use that saved list and never call the API. "Update division list" on the Add a division page reruns discovery in that browser only; the result is kept in localStorage (`…-discovered`) and wins until a newer `SAVED_LIST` ships. To update the list for everyone, rerun discovery and regenerate the `SAVED_LIST` block (last saved 2026-09-28 with the Silver and Bronze layouts: 36 readable tabs, 24 not).
 
 `discoverDivisions` builds the division list from the official index:
 
 1. One `spreadsheets.get` of the index with `fields=sheets(properties(sheetId,title),data(rowData(values(formattedValue,hyperlink,textFormatRuns(format(link(uri))),userEnteredValue(formulaValue)))))`. The tab matching the link's gid is used ("🏐Nationals Index", gid 1891963095; an old "Nationals Index.OG" tab also exists). In the 2025 index every division link is a plain cell `hyperlink`; rich-text links (`textFormatRuns`) appear only on non-division cells, and there are no `HYPERLINK()` formulas, but all three are handled. Only cells labelled like "G18u D1", "GJV", "B16u" count, which skips the "Big Picture Nationals Prelim Schedule" link and the forms.
 2. One `spreadsheets.get` per linked spreadsheet with `fields=properties(title),sheets(properties(sheetId,title,hidden))`. The API can't batch across spreadsheets, so a discovery costs 17 reads (1 + 16), run 4 at a time. Hidden tabs and Home/Ref are skipped. A title containing "Pool" means pool play; everything else is a bracket.
-3. Each candidate tab is fetched through the public CSV path and kept only if the parser finds real content: a pool with at least 2 teams, or a titled bracket with at least one team. (`parseBrackets` turns any time cell into a match, so "found a bracket" alone means nothing.) Failures are listed on the Add a division page.
+3. Each candidate tab is fetched through the public CSV path and kept only if `tabReadable` passes: a pool with at least 2 teams, or titled brackets with at least one team where every bracket on the tab has rounds named from its match names and each round is half the size of the one before. (`parseBrackets` turns any time cell into a match, so "found a bracket" alone means nothing; the shape check keeps out Copper and brackets with byes, which parse into the wrong rounds.) Failures are listed on the Add a division page.
 4. Names come from the spreadsheet title ("Girls 18u D1 - 2025 NCHVC" gives "Girls 18U D1") plus the tab: a "Pools" tab is just the division name, "D1 Gold Ball Brackets" becomes "Girls 18U D1 Gold Ball". The event label ("2025 NCHVC") also comes from the title.
 
 Quota: the Sheets API allows about 300 reads per minute for the whole project, shared by every viewer. Discovery never runs on page load or score refreshes, only from the button (17 reads). Any failure sets a backoff (`…-backoff`) that disables the button: 10 minutes, and on a 429 doubling up to 2 hours. The list already in use stays.
@@ -41,7 +41,7 @@ A Google Sheet owned by the user, read on page load and when Refresh is clicked.
 - `Division`: display name, e.g. "Girls 18U D1 Gold Ball".
 - `Link`: the full tab URL as plain text (not a hyperlink with display text).
 - `Show`: "No" hides the row.
-- Optional filter overrides: `Gender`, `Age`, `Level` (e.g. D1 or D1/D2), `Bracket` (Gold, Silver, Bronze, GBSS). If blank, these are parsed from the Division name.
+- Optional filter overrides: `Gender`, `Age`, `Level` (e.g. D1 or D1/D2), `Bracket` (Gold, Silver, Bronze, Copper, Iron, GBSS). If blank, these are parsed from the Division name; a "Gold & Silver" name counts as both Gold and Silver.
 
 With discovery on, rows override discovered entries: a row with the same tab link renames it, a row with the same name (Link may be blank) hides it (Show = No) or fixes its tags, and rows matching nothing are added. Without discovery the sheet is the whole list, as before.
 
@@ -58,19 +58,25 @@ Parsed by labels, not fixed cell addresses. Per pool:
 
 ## Bracket play sheet layout (parser: `parseBrackets`)
 
-Verified only against "Girls 18u D1" Gold Ball tab (gid 1394730142). Each class (8A, 7A, 6A…) is a 4-team bracket:
+One parser reads the Gold Ball, Silver, Bronze, Gold & Silver and GBSS tabs (verified against every 2025 tab of those kinds). Common layout:
 
-- Matches are anchored on the start-time cell ("5:00 pm"), with the day above and court and match name below. Team cells are found above and below in the same column; a team cell has a seed label like "8A #1" in the column to its left.
-- The score (e.g. "25-18, 31-29", winner's perspective) is written directly under the winning team. Fallback: a team appearing in the next round is treated as the winner.
-- Rounds are ordered by column (rightmost = Final). "Best of 5" note sits above the final's time.
-- "... Champions" title cell (champion name 1–3 rows below) defines each bracket. Matches are grouped by the class in their seed labels ("8A #1" goes to 8A); a match with no teams yet joins the closest grouped match. "... Results" and "Winner:" cells use their own label, then the closest match. Nearest title by row is only the last resort.
-- "Losing team to" / destination (e.g. "Bronze-8") / team: where the semifinal loser goes.
+- Matches are anchored on the start-time cell ("5:00 pm"), with the day above and court and match name below. Team cells are found above and below in the same column; a team cell has its seed in the column to its left: "8A #1" (Gold Ball), a plain "1" (Silver, Bronze; shown as "#1") or "4A" (the Gold & Silver champion game).
+- The score (e.g. "25-18, 31-29", winner's perspective) is written under the winning team, directly below or, in some finals and placement matches, two rows below. Fallback: a team appearing in the round its winner moves on to is treated as the winner.
+- Rounds come from the match names when every match has a known kind: "Quarter", "Semi", "Con Semi", "3rd", "5th", "7th", and "… BALL", "CHAMP", "UNDISPUTED" or "Final" for the final. Quarterfinals, Semifinals and Final make the bracket; 3rd place and the consolation side (Con Semi, 5th, 7th) show below it as "Placement matches". Without names, rounds are the columns (rightmost = Final). "Best of 5" sits above the final's time.
+- "... Champion(s)" title cell (champion name 1–3 rows below) defines each bracket. Its button label is the class ("8A") or what the title adds to the age and division ("Silver", "Bronze Ball"). Matches are grouped by the class in their seed labels ("8A #1" goes to 8A); other matches join the closest grouped match, then the nearest title by row.
+- "Losing team to" / destination (e.g. "Bronze-8") / team: where a Gold Ball semifinal loser goes.
 - "Winner:" / award text (e.g. "Gold Ball & Medals").
-- "... Results" row, then "Rank", "Advancement", "Teams" header and ranked rows.
+- Gold Ball tabs: "... Results" row, then "Rank", "Advancement", "Teams" header and ranked rows. Silver and Bronze tabs have no results table; it's built from the matches (champion, final loser, then winner and loser of the 3rd/5th/7th place matches), falling back to the "... 3rd Place" style titles with the team below.
 
-Verified against all eight 2025 "Gold Ball Brackets" tabs (4-team classes in G18u D1; 8-team classes with quarterfinals elsewhere).
+Layouts seen in 2025:
 
-Not supported yet (found by discovery, all 2025): Bronze, Silver, GBSS, Gold & Silver, Copper, "Gold"/"Gold Bracket", Iron Finals, Copper Finals, Play-in + Seeding and Seeding + Qualifier tabs. Seen so far: seeds are plain numbers ("1", "4") rather than "8A #1", so no team cell is recognised, and a 3rd-place match shares the final's column. Iron Pools, Copper Pools and Consolation Pool tabs don't parse with `parsePools` either. Discovery drops these tabs; they're listed on the Add a division page.
+- Gold Ball: 4-team classes (G18u D1) or 8-team classes with quarterfinals, several classes per tab.
+- Silver: 4 teams, semis, final and 3rd place (G18u D1 Silver).
+- Bronze: 4 teams with 3rd place, or 8 teams with quarterfinals and a consolation side flowing left (Con Semi, 5th, 7th) (G18u D1 Bronze).
+- Gold & Silver: a one-match champion game ("CHAMP" or "UNDISPUTED", seeds "4A"/"3A") plus a one-match Silver final.
+- GBSS (and B14u "Gold"): 4 teams, semis, final and 3rd place.
+
+Not supported yet: Copper (5 columns of rounds named "Copper 1st"…), the "Gold"/"Gold Bracket" tabs with byes (G16u D2, G14u D2, G12u, B16u), Iron Finals, Copper Finals, Play-in + Seeding and Seeding + Qualifier. Iron Pools, Copper Pools and Consolation Pool tabs don't parse with `parsePools` either. Discovery drops these tabs; they're listed on the Add a division page.
 
 Before seeding, a bracket tab has no teams, so discovery drops it. Rerun discovery once teams appear.
 
@@ -78,7 +84,7 @@ Before seeding, a bracket tab has no teams, so discovery drops it. Rerun discove
 
 - Pool play / Bracket play switch; division buttons filtered by Boys or girls, Age group, Division (D1–D4) and Bracket (brackets only). Filters cascade and are remembered per stage.
 - Pool pages: standings plus match list with set scores, "Up next", per-match court when a pool uses several courts.
-- Bracket pages: champion banner with award, rounds side by side (stacked on phones), loser destinations, results table.
+- Bracket pages: champion banner with award, rounds side by side (stacked on phones), placement matches (3rd place, consolation) below, loser destinations, results table.
 - Follow a team (highlights it and jumps to its pool/bracket), Refresh button, optional auto-refresh every 60 s, highlight of changed cells since last refresh.
 - "Add a division" saves only in the current browser; the NCHVC index plus the divisions sheet are the shared source. That page also shows the division list status, the "Update division list" button and the tabs that couldn't be read.
 
