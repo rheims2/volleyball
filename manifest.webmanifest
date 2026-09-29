@@ -1,6 +1,6 @@
 {
-  "name": "Heartland Regionals",
-  "short_name": "Heartland Regionals",
+  "name": "Regionals",
+  "short_name": "Regionals",
   "description": "NCHVC Heartland Regionals pool and bracket results",
   "id": "./",
   "start_url": "./",
