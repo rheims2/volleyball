@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NCHVC pool results</title>
+<!-- Home Screen app: name, icon and full-screen launch (iPhone reads the apple-* tags, Android the manifest) -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-title" content="Regionals">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#13294B">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -107,7 +116,9 @@
   .bmatch .tbd .nm { color: var(--muted); font-style: italic; font-weight: 400; }
   .bmatch .foot { color: var(--muted); font-size: 14px; margin-top: 8px; }
   @media (max-width: 700px) { .bracket { grid-template-columns: 1fr; } .round .slots { justify-content: flex-start; } }
-  .bar { background: var(--navy-2); padding: 10px clamp(14px, 4vw, 36px); position: sticky; top: 0; z-index: 2; }
+  .bar { background: var(--navy-2); padding: 10px clamp(14px, 4vw, 36px); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; }
+  /* Opened from the Home Screen, the page runs under the iPhone's clock and battery; this navy strip keeps them readable */
+  body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: var(--navy); z-index: 5; }
   .bar-inner { max-width: 1100px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; }
   .pools { display: flex; gap: 6px; overflow-x: auto; }
   .pools button {
@@ -181,6 +192,19 @@
   .ghost { font: 600 16px Barlow, sans-serif; background: transparent; color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 10px 20px; cursor: pointer; }
 
   :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  /* Add to Home Screen: a card at the bottom on the first visit from a phone, and a button at the end of the page */
+  [hidden] { display: none !important; }
+  .foot { text-align: center; padding: 0 16px calc(28px + env(safe-area-inset-bottom, 0px)); margin-top: -12px; }
+  .install { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 460px; margin: 0 auto; z-index: 10;
+    display: flex; gap: 12px; align-items: flex-start; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 14px;
+    box-shadow: 0 10px 30px rgba(19, 41, 75, .28); }
+  .install img { border-radius: 12px; flex: none; }
+  .install strong { font-size: 16px; }
+  .install p { margin: 4px 0 10px; font-size: 15px; line-height: 1.35; color: var(--muted); }
+  .install p b { color: var(--ink); }
+  .install p svg { vertical-align: -3px; }
+  .install-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .install .ghost { padding: 6px 16px; font-size: 15px; }
   @media (prefers-reduced-motion: reduce) { .flash { animation: none; background: var(--flash); } .loading .spin { animation-duration: 2.5s; } }
 </style>
 </head>
@@ -217,6 +241,18 @@
   </div>
 </div>
 <main id="main"></main>
+<footer class="foot"><button class="ghost" id="installBtn" type="button" hidden>Add to Home Screen</button></footer>
+<div class="install" id="install" role="dialog" aria-labelledby="installTitle" hidden>
+  <img src="icons/apple-touch-icon.png" alt="" width="52" height="52">
+  <div>
+    <strong id="installTitle">Add Regionals to your Home Screen</strong>
+    <p id="installHow"></p>
+    <div class="install-actions">
+      <button class="refresh" id="installGo" type="button" hidden>Install</button>
+      <button class="ghost" id="installClose" type="button">Not now</button>
+    </div>
+  </div>
+</div>
 
 <script src="config.js"></script>
 <script>
@@ -1469,6 +1505,46 @@ $("followSel").addEventListener("change", e => {
 setInterval(updateStatus, 30000);
 if (VOLUNTEER_SHEET) { $("volunteerLink").href = VOLUNTEER_SHEET; $("volunteerLink").hidden = false; }
 if ("auto" in settings) { delete settings.auto; save(); }   // auto-refresh was removed; forget the old setting
+
+/* ---------------- Add to Home Screen ----------------
+   iPhones can't be asked to install a page, so they get the steps (Share, then Add to Home Screen).
+   Chrome on Android offers an install prompt (beforeinstallprompt), used by the Install button;
+   other Android browsers get the menu steps. Shown once on a phone's first visit, then from the
+   "Add to Home Screen" button at the end of the page. Hidden when already opened from the icon. */
+const UA = navigator.userAgent;
+const IS_IOS = /iPhone|iPad|iPod/.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
+const IS_ANDROID = /Android/.test(UA);
+const IN_APP = /FBAN|FBAV|Instagram|Snapchat|Line\//.test(UA);   // in-app browsers can't add to the Home Screen
+const standalone = () => navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+const SHARE_ICON = `<svg width="17" height="19" viewBox="0 0 17 19" fill="none" stroke="#13294B" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-label="Share"><path d="M8.5 12V1.5M5 4.8l3.5-3.3L12 4.8"/><path d="M5.5 7.5H3a1.5 1.5 0 0 0-1.5 1.5v7.5A1.5 1.5 0 0 0 3 18h11a1.5 1.5 0 0 0 1.5-1.5V9A1.5 1.5 0 0 0 14 7.5h-2.5"/></svg>`;
+let installEvent = null;
+if (SITE_LABEL) { const t = document.querySelector('meta[name="apple-mobile-web-app-title"]'); t.content = SITE_LABEL + " " + t.content; }
+function installHow() {
+  if (IS_IOS) return IN_APP
+    ? "Open this page in Safari first (this app's <b>•••</b> menu, then <b>Open in browser</b>). Then tap Share and <b>Add to Home Screen</b>."
+    : `Tap the Share button ${SHARE_ICON} (on newer iPhones it's in the <b>•••</b> menu), then <b>Add to Home Screen</b>. You may need to tap <b>View More</b> to see it.`;
+  if (installEvent) return "It opens full screen from its own icon, like an app.";
+  return "Open your browser's menu <b>⋮</b> and tap <b>Add to Home screen</b> or <b>Install app</b>.";
+}
+function showInstall() { $("installHow").innerHTML = installHow(); $("installGo").hidden = !installEvent; $("installClose").textContent = installEvent ? "Not now" : "Got it"; $("install").hidden = false; }
+function hideInstall() { $("install").hidden = true; try { localStorage.setItem(KEY + "-install-seen", "1"); } catch (e) {} }
+const updateInstallBtn = () => { $("installBtn").hidden = standalone() || !(IS_IOS || IS_ANDROID || installEvent); };
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault(); installEvent = e; updateInstallBtn();
+  if (!$("install").hidden) showInstall();
+});
+window.addEventListener("appinstalled", () => { installEvent = null; hideInstall(); updateInstallBtn(); });
+$("installBtn").addEventListener("click", showInstall);
+$("installClose").addEventListener("click", hideInstall);
+$("installGo").addEventListener("click", async () => {
+  if (!installEvent) return;
+  installEvent.prompt();
+  try { await installEvent.userChoice; } catch (e) {}
+  installEvent = null; hideInstall(); updateInstallBtn();
+});
+updateInstallBtn();
+let installSeen = false; try { installSeen = !!localStorage.getItem(KEY + "-install-seen"); } catch (e) {}
+if ((IS_IOS || IS_ANDROID) && !standalone() && !installSeen) setTimeout(showInstall, 1500);
 render();
 (async () => { await loadConfig(); render(); if (currentStage() === "club") loadClub(false); else refresh(); })();
 </script>
