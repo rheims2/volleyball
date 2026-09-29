@@ -79,6 +79,7 @@
   .teamlist .row { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 6px; gap: 6px; }
   .teamlist .ghost { padding: 5px 12px; font-size: 14px; }
   .teamlist .refresh { padding: 5px 16px; font-size: 14px; margin-left: auto; }
+  .mday { font-weight: 700; color: var(--ink); }
   .dayhead { font: 700 24px "Barlow Condensed", sans-serif; margin: 18px 0 8px; }
   .gwhere { font-size: 14px; font-weight: 600; color: var(--navy-2); margin: -4px 0 6px; }
   .side.ours .nm { font-weight: 700; color: var(--ink); }
@@ -1152,14 +1153,16 @@ const MATCH_MINUTES = 45;
 const toMinutes = t => { const x = String(t).match(/(\d{1,2}):(\d{2})\s*([ap])\.?\s*m/i); return x ? (+x[1] % 12 + (/p/i.test(x[3]) ? 12 : 0)) * 60 + +x[2] : null; };
 const clock = n => { const h = Math.floor(n / 60) % 24; return `${h % 12 || 12}:${String(n % 60).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
 function estimateStarts(matches) {
-  const lastOnCourt = {}; let lastInPool = null;
+  // Kept per day, so a Saturday match never follows on from Friday's times
+  const lastOnCourt = {}, lastInPool = {};
   return matches.map(m => {
     let start = toMinutes(m.time), est = null;
+    const day = String(m.day || ""), court = day + "|" + (m.court || "");
     if (start == null && /rolling/i.test(m.time)) {
-      const prev = m.court && lastOnCourt[m.court] != null ? lastOnCourt[m.court] : lastInPool;
+      const prev = m.court && lastOnCourt[court] != null ? lastOnCourt[court] : lastInPool[day];
       if (prev != null) start = est = prev + MATCH_MINUTES;
     }
-    if (start != null) { if (m.court) lastOnCourt[m.court] = start; lastInPool = start; }
+    if (start != null) { if (m.court) lastOnCourt[court] = start; lastInPool[day] = start; }
     return est;
   });
 }
@@ -1253,12 +1256,15 @@ function render() {
     const setCells = side => m.sets.map(([x, y]) => { const me = side ? y : x, them = side ? x : y; return `<span class="${me > them ? "w" : ""}">${me}</span>`; }).join("");
     const when = estimates[i] != null ? `<span title="Follows previous match; estimated at ${MATCH_MINUTES} minutes a match">Est. ${clock(estimates[i])}</span>`
       : /rolling/i.test(m.time) ? "Follows previous match" : esc(m.time);
+    // Every match shows its day ("Fri", "Sat"), since some pools play over two days
+    const dk = String(m.day || "").slice(0, 3).toLowerCase();
+    const day = /^(mon|tue|wed|thu|fri|sat|sun)$/.test(dk) ? `<b class="mday">${dk[0].toUpperCase() + dk.slice(1)}</b> ` : "";
     // Every match shows its court, even when the whole pool plays on one
     const where = m.court ? `, ${esc(m.court.replace(/^Sports Pavilion\s*#?\s*/i, "Court "))}` : "";
     const tag = m.played ? (aw === bw ? `<span class="tag final">Split ${aw}–${bw}</span>` : `<span class="tag final">Final</span>`)
               : m.next ? `<span class="tag next">Up next</span>` : "";
     return `<li class="${(mine(m.a) || mine(m.b)).trim()}${fl("m" + m.num)}">
-      <div class="mhead"><span>Match ${esc(m.num)}: ${when}${where}</span>${tag}</div>
+      <div class="mhead"><span>Match ${esc(m.num)}: ${day}${when}${where}</span>${tag}</div>
       <div class="side ${res[0]}"><span class="nm">${m.a ? esc(m.a) : `<em style="color:var(--muted);font-weight:400">To be decided</em>`}</span><span class="sets">${setCells(0)}</span></div>
       <div class="side ${res[1]}"><span class="nm">${m.b ? esc(m.b) : `<em style="color:var(--muted);font-weight:400">To be decided</em>`}</span><span class="sets">${setCells(1)}</span></div></li>`;
   }).join("");
