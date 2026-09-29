@@ -68,6 +68,8 @@
   .divs { max-width: 1100px; margin: 12px auto 0; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
   .divs button { font: 600 15px Barlow, sans-serif; white-space: nowrap; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); background: transparent; color: #fff; cursor: pointer; }
   .divs button[aria-pressed="true"] { background: #fff; color: var(--dark); border-color: #fff; }
+  .divpick { flex: 1; max-width: 480px; }
+  .divpick select { width: 100%; font: 700 17px Barlow, sans-serif; padding: 9px 12px; border-radius: 8px; border: 0; background: #fff; color: var(--ink); }
   .custom-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   .custom-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
   /* Filters and the stage switch share one compact row; each dropdown says what it filters
@@ -1007,7 +1009,8 @@ function filterOptions(stage, key) {
     return a.localeCompare(b, undefined, { numeric: true });
   });
 }
-const visibleDivisions = stage => divisions().filter(d => typeOf(d) === stage && fits(d, filtersFor(stage)));
+// Every division of the stage: the dropdown picks among them (the gender, age and bracket filters were taken out)
+const visibleDivisions = stage => divisions().filter(d => typeOf(d) === stage);
 const current = () => {
   const stage = currentStage();
   const list = visibleDivisions(stage);
@@ -1493,16 +1496,12 @@ function renderDivisions() {
   const cur = current().id;
   const stage = currentStage();
   document.querySelectorAll("#stages button").forEach(b => b.setAttribute("aria-pressed", b.dataset.stage === stage));
-  const btn = d => `<button type="button" data-div="${esc(d.id)}" aria-pressed="${!setup && d.id === cur}">${esc(d.name)}</button>`;
-  const f = filtersFor(stage);
-  const active = stageFilters(stage);
-  $("filters").innerHTML = active.map(x => {
-    const opts = filterOptions(stage, x.key);
-    return `<label><span class="sr">${esc(x.label)}</span><select data-filter="${x.key}" class="${f[x.key] ? "set" : ""}" title="${esc(x.label)}"><option value="">${esc(x.any)}</option>${
-      opts.map(v => `<option ${v === f[x.key] ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></label>`;
-  }).join("") + (active.some(x => f[x.key]) ? `<button type="button" class="linkish" id="clearFilters">Clear</button>` : "");
+  $("filters").innerHTML = ""; $("filters").hidden = true;
+  // One dropdown of the stage's divisions picks the pool or bracket shown below
   const list = visibleDivisions(stage);
-  $("divs").innerHTML = list.map(btn).join("");
+  $("divs").innerHTML = list.length ? `<label class="divpick"><span class="sr">${stage === "brackets" ? "Bracket" : "Pool"}</span><select id="divSel">${
+    setup ? `<option value="" selected>Pick a division…</option>` : ""}${
+    list.map(d => `<option value="${esc(d.id)}" ${!setup && d.id === cur ? "selected" : ""}>${esc(d.name)}</option>`).join("")}</select></label>` : "";
   $("divs").hidden = !list.length;
 }
 
@@ -1762,10 +1761,10 @@ $("filters").addEventListener("change", e => {
   save(); afterFilterChange();
 });
 $("filters").addEventListener("click", e => { if (e.target.closest("#clearFilters")) clearFilters(); });
-$("divs").addEventListener("click", e => {
-  const b = e.target.closest("button[data-div]"); if (!b) return;
-  leaveSetup(); settings.division = b.dataset.div; flashKeys = new Set();
-  settings.chosen = { ...(settings.chosen || {}), [currentStage()]: b.dataset.div }; save();
+$("divs").addEventListener("change", e => {
+  const b = e.target.closest("#divSel"); if (!b || !b.value) return;
+  leaveSetup(); settings.division = b.value; flashKeys = new Set();
+  settings.chosen = { ...(settings.chosen || {}), [currentStage()]: b.value }; save();
   render();
   const s = slot(settings.division);
   if (!s.lastUpdated || Date.now() - s.lastUpdated > 30000) refresh();
