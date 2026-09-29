@@ -1037,7 +1037,8 @@ async function refresh() {
     const keys = snapshot(next);
     const changed = s.prevKeys ? Object.keys(keys).filter(k => s.prevKeys[k] !== undefined && s.prevKeys[k] !== keys[k]) : [];
     if (current().id === d.id) flashKeys = new Set(changed);
-    s.prevKeys = keys; s.model = next; s.error = null; s.errorDetail = ""; s.lastUpdated = new Date();
+    s.prevKeys = keys; s.model = next; s.error = null; s.errorDetail = ""; s.lastUpdated = new Date(); s.saved = false;
+    saveTab(d, rows);
     const keyOf = x => next.kind === "brackets" ? x.key : x.letter;
     const hasTeam = x => next.kind === "brackets" ? x.teams.includes(settings.follow) : x.teams.some(t => t.team === settings.follow);
     if (!s.active || !items.some(x => keyOf(x) === s.active)) {
@@ -1070,23 +1071,67 @@ const dayKey = d => String(d || "").slice(0, 3).toLowerCase();
 document.addEventListener("click", e => { const p = $("teamPick"); if (p && p.open && !p.contains(e.target)) { teamPickOpen = false; p.open = false; } });
 document.addEventListener("keydown", e => { const p = $("teamPick"); if (e.key === "Escape" && p && p.open) { teamPickOpen = false; p.open = false; } });
 
+/* Saved tabs: every division's rows as last loaded, kept in this browser, so opening the page
+   shows the last results straight away while the fresh ones load (about 80 KB before the event). */
+const TABS_KEY = KEY + "-tabs";
+let savedTabs = {}; try { savedTabs = JSON.parse(localStorage.getItem(TABS_KEY)) || {}; } catch (e) {}
+let saveTimer = null;
+function saveTab(d, rows) {
+  savedTabs[d.id] = { url: d.url, at: Date.now(), rows };
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const ids = new Set(divisions().map(x => x.id));
+    Object.keys(savedTabs).forEach(id => { if (!ids.has(id)) delete savedTabs[id]; });   // divisions no longer on the list
+    try { localStorage.setItem(TABS_KEY, JSON.stringify(savedTabs)); } catch (e) {}
+  }, 1000);
+}
+const parseTab = (d, rows) => (d.type || "pools") === "brackets" ? parseBrackets(rows) : parsePools(rows);
+// Fills the divisions not loaded yet from the saved tabs (same link only); they count as old, so they're fetched again
+function restoreTabs() {
+  let oldest = null;
+  divisions().forEach(d => {
+    const t = savedTabs[d.id], s = slot(d.id);
+    if (s.model || !t || t.url !== d.url || !Array.isArray(t.rows)) return;
+    try {
+      s.model = parseTab(d, t.rows); s.prevKeys = snapshot(s.model); s.lastUpdated = new Date(t.at); s.saved = true;
+      if (!oldest || t.at < oldest) oldest = t.at;
+    } catch (e) {}
+  });
+  if (oldest && !club.lastUpdated) club.lastUpdated = new Date(oldest);
+}
+
 async function loadClub(force) {
   if (club.busy) return;
   const list = divisions();
   club.busy = true; club.done = 0; club.total = list.length; club.failed = [];
+  club.verb = list.some(d => slot(d.id).model) ? "Updating" : "Loading";
   busy(true); if (currentStage() === "club") render();
-  await eachLimit(list, 4, async d => {
+  // Redraw as divisions arrive, unless someone is using a dropdown (a redraw would close it)
+  let drawTimer = null;
+  const draw = () => {
+    if (drawTimer || currentStage() !== "club") return;
+    drawTimer = setTimeout(() => {
+      drawTimer = null;
+      const a = document.activeElement;
+      if (club.busy && (teamPickOpen || (a && /^(SELECT|INPUT)$/.test(a.tagName)))) return;
+      render();
+    }, 400);
+  };
+  await eachLimit(list, 8, async d => {
     const s = slot(d.id);
     try {
-      if (force || !s.model || !s.lastUpdated || Date.now() - s.lastUpdated > 60000) {
+      if (force || !s.model || s.saved || !s.lastUpdated || Date.now() - s.lastUpdated > 60000) {
         const rows = await fetchRows(linkParts(d.url));
-        s.model = d.type === "brackets" ? parseBrackets(rows) : parsePools(rows);
+        s.model = parseTab(d, rows); s.saved = false;
         s.lastUpdated = new Date(); s.error = null;
+        saveTab(d, rows);
+        draw();
       }
     } catch (e) { club.failed.push(d.name); }
     club.done++;
-    const bar = $("clubProgress"); if (bar) bar.textContent = `Loading divisions… ${club.done} of ${club.total}`;
+    const bar = $("clubProgress"); if (bar) bar.textContent = `${club.verb} divisions… ${club.done} of ${club.total}`;
   });
+  clearTimeout(drawTimer);
   club.busy = false; club.lastUpdated = new Date(); busy(false);
   if (currentStage() === "club") render();
 }
@@ -1151,7 +1196,7 @@ function renderClub() {
       mine.map(t => `<label><input type="checkbox" data-team="${esc(t.id)}" ${picked.has(t.id) ? "checked" : ""}> ${esc(label(t))}</label>`).join("")}
       <div class="row"><button type="button" class="ghost" id="teamsAll">All</button><button type="button" class="ghost" id="teamsNone">None</button><button type="button" class="refresh" id="teamsDone">Done</button></div></div></details>` : ""}
   </div>`;
-  if (club.busy) html += `<p class="note" id="clubProgress" style="padding:0">Loading divisions… ${club.done} of ${club.total}</p>`;
+  if (club.busy) html += `<p class="note" id="clubProgress" style="padding:0">${club.verb} divisions… ${club.done} of ${club.total}</p>`;
   if (club.failed.length) html += `<div class="msg err"><p>Couldn't load: ${esc(club.failed.join(", "))}.</p></div>`;
 
   if (!cur) {
@@ -1763,8 +1808,21 @@ $("installGo").addEventListener("click", async () => {
 updateInstallBtn();
 let installSeen = false; try { installSeen = !!localStorage.getItem(KEY + "-install-seen"); } catch (e) {}
 if ((IS_IOS || IS_ANDROID) && !standalone() && !installSeen) setTimeout(showInstall, 1500);
+restoreTabs();
 render();
-(async () => { await loadConfig(); render(); loadVolunteers(true); if (currentStage() === "club") loadClub(false); else refresh(); })();
+(async () => {
+  // With the divisions list saved from last time, the tabs load while the divisions sheet is read
+  const config = loadConfig();
+  if (!configDivs) await config;
+  loadVolunteers(true);
+  const load = () => currentStage() === "club" ? loadClub(false) : refresh();
+  const first = load();
+  await config;
+  restoreTabs(); render();
+  // A division added to the sheet since last time is loaded once the first pass is done
+  await first;
+  if (divisions().some(d => !slot(d.id).model && !slot(d.id).error)) load();
+})();
 </script>
 </body>
 </html>
