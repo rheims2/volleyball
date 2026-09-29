@@ -1303,37 +1303,11 @@ const volNorm = v => String(v || "").toLowerCase().replace(/pool/g, "").replace(
 const isNA = v => /^n\/?a$/i.test(String(v).trim());
 // Division code for Match names and team codes: "G16u" for Girls 16U, "GJV" for Girls JV
 const volShort = d => { const t = tagsOf(d); return t.gender && t.age ? t.gender[0] + (t.age === "JV" ? "JV" : t.age.toLowerCase()) : ""; };
-// Our team's code in the sheet: "16UB1" for Boys 16U "Des Moines Eclipse (IA)- 1", "JVG" for Girls JV
-const volTeamCode = (d, name) => { const t = tagsOf(d); return (t.age === "JV" ? "JV" : t.age) + (t.gender || " ")[0] + teamSuffix(name); };
-// The club whose games get Volunteer buttons (and rows added when missing)
-const VOL_CLUB = VIEWER_CONFIG.volunteerClub || DEFAULT_CLUB;
-// Jobs each side covers; every other job column gets "N/A" on a row the page adds
-const VOL_JOBS = { home: ["line judge", "bookkeeper"], away: ["line judge", "scoreboard operator", "libero tracker"] };
-const volGames = new Map();
-/* A game of ours: { key, match, newRows }. newRows are the sheet rows to add the first time
-   its button is tapped when the sheet has none (the first team listed is the home team).
-   g = { match, a, b, day, time, court } */
+// A game with rows in the volunteer sheet: { key, match }. Games not in the sheet get no button.
 function volGame(d, g) {
   if (!g.match) return null;
   const key = volNorm(g.match);
-  const ours = [g.a, g.b].map(n => !!n && clubOf(n).toLowerCase() === VOL_CLUB.toLowerCase());
-  let newRows = [];
-  if ((ours[0] || ours[1]) && g.a && g.b && vol.roles.length && volShort(d)) {
-    const names = [g.a, g.b], word = VOL_CLUB.split(/\s+/).pop();
-    const dk = dayKey(g.day), known = vol.rows.find(r => dayKey(r.day) === dk);
-    const day = known ? known.day : dk ? dk[0].toUpperCase() + dk.slice(1) : "";
-    const court = /FH\s*#?\s*(\d+)\s*$/i.test(g.court || "") ? "FH " + g.court.match(/(\d+)\s*$/)[1] : courtLabel(g.court);
-    newRows = [0, 1].filter(i => ours[i]).map(i => {
-      const side = i === 0 ? "home" : "away", other = names[1 - i];
-      return { day, time: g.time || "", court, team: volTeamCode(d, names[i]), side: i === 0 ? "Home" : "Away",
-        opp: ours[1 - i] ? `${volTeamCode(d, other)} (${word})` : other, match: g.match,
-        cells: Object.fromEntries(vol.roles.map(role => [role, VOL_JOBS[side].includes(role.toLowerCase()) ? "" : "N/A"])) };
-    });
-  }
-  if (!newRows.length && !volRowsFor(key).length) return null;
-  const game = { key, match: g.match, newRows };
-  volGames.set(key, game);
-  return game;
+  return volRowsFor(key).length ? { key, match: g.match } : null;
 }
 // A pool match's Match name, as the sheet writes it: "G16u Pool A M1"
 const volPoolMatch = (d, poolName, num) => volShort(d) && num ? `${volShort(d)} ${poolName} M${num}` : "";
@@ -1377,9 +1351,7 @@ async function loadVolunteers(force) {
       vol.at = Date.now();
       // Sign-ups still being saved stay on show (and a new game's rows stay until the sheet has them)
       volInflight.forEach(f => {
-        let row = vol.rows.find(x => x.key === f.key && x.team === f.team);
-        if (!row && f.rows) f.rows.forEach(n => { if (!vol.rows.some(x => x.key === volNorm(n.match) && x.team === n.team)) vol.rows.push({ ...volRowOf(n), unsaved: true }); });
-        row = vol.rows.find(x => x.key === f.key && x.team === f.team);
+        const row = vol.rows.find(x => x.key === f.key && x.team === f.team);
         if (row && !row.cells[f.role]) { row.cells[f.role] = f.name; row.saving = { ...(row.saving || {}), [f.role]: true }; }
       });
     }
@@ -1392,12 +1364,7 @@ const volOpen = rows => rows.reduce((n, r) => n + vol.roles.filter(role => !r.ce
 function volButton(game) {
   if (!game) return "";
   const key = game.key, rows = volRowsFor(key);
-  if (!rows.length) {
-    // Not in the sheet yet: its row is added the first time the button is tapped
-    if (!VOLUNTEER_SCRIPT || !game.newRows.length) return "";
-    const need = game.newRows.reduce((n, r) => n + Object.values(r.cells).filter(v => !v).length, 0);
-    return `<div class="volrow"><button type="button" class="volbtn" data-vol="${esc(key)}">Volunteer · ${need} open</button></div>`;
-  }
+  if (!rows.length) return "";
   const open = volOpen(rows);
   return `<div class="volrow"><button type="button" class="volbtn${open ? "" : " full"}" data-vol="${esc(key)}">${open ? `Volunteer · ${open} open` : "Volunteers ✓ all filled"}</button></div>`;
 }
@@ -1417,12 +1384,11 @@ async function volPost(body, keepalive) {
   try { res = await send(!!keepalive); } catch (e) { if (!keepalive) throw e; res = await send(false); }
   return res.json();
 }
-const volRowOf = r => ({ ...r, key: volNorm(r.match), cells: { ...r.cells } });
 const volStatus = {};   // key -> the thank-you / saved line shown at the top of that game's form
 const volInflight = [];   // sign-ups still being saved, put back after the sheet is re-read
-async function volSave(key, r, role, name, add) {
+async function volSave(key, r, role, name) {
   const ask = { match: r.match, team: r.team, role, name };
-  const flight = { key, team: r.team, role, name, rows: add };
+  const flight = { key, team: r.team, role, name };
   volInflight.push(flight);
   const done = ok => {
     volInflight.splice(volInflight.indexOf(flight), 1);
@@ -1432,15 +1398,7 @@ async function volSave(key, r, role, name, add) {
     delete r.saving[role]; if (!ok) delete volStatus[key]; render(); refreshVolForm(key);
   };
   try {
-    // One request adds the game's rows (if they're missing) and signs up
-    let out = await volPost(add ? { ...ask, add } : ask, true);
-    if (add && out.error === "nogame") {
-      // A script from before combined sign-ups: add the rows first, then sign up
-      const added = await volPost({ action: "add", rows: add }, true);
-      if (!added.ok) throw new Error(added.error || "add");
-      out = await volPost(ask, true);
-    }
-    if (out.ok || out.error === "taken" || out.error === "notneeded") volRowsFor(key).forEach(x => { delete x.unsaved; });
+    const out = await volPost(ask, true);
     // "taken" by this same name means an earlier try got through
     if (out.ok || (out.error === "taken" && out.value === name)) {
       volStatus[key] = `Thank you, ${name}! You're the ${role} for ${r.team}. Saved ✓`;
@@ -1474,11 +1432,7 @@ function toast(text, action, fn) {
 }
 function openVolForm(key) {
   const done = volStatus[key];
-  // A game that isn't in the sheet yet shows the rows it would get; its row is added with the sign-up
-  const game = volGames.get(key), here = volRowsFor(key);
-  const pending = game && game.newRows.length && (!here.length || here.every(x => x.unsaved))
-    ? (here.length ? here : game.newRows.map(r => ({ ...volRowOf(r), unsaved: true }))) : null;
-  const rows = pending || volRowsFor(key); if (!rows.length) return;
+  const rows = volRowsFor(key); if (!rows.length) return;
   warmVolScript();
   const r0 = rows[0], dlg = $("volForm");
   dlg.dataset.key = key;
@@ -1516,11 +1470,10 @@ function openVolForm(key) {
     // Shown as signed up straight away; the sheet is written in the background (Apps Script can
     // take 10-15 s to start), and only a failure comes back, as a note at the bottom of the page
     volName = name; try { localStorage.setItem(KEY + "-volname", name); } catch (e) {}
-    if (pending) pending.forEach(x => { if (!vol.rows.some(y => y.key === x.key && y.team === x.team)) vol.rows.push(x); });
     r.cells[role] = name; r.saving = { ...(r.saving || {}), [role]: true };
     volStatus[key] = `Thank you, ${name}! You're the ${role} for ${r.team}. Saving it to the volunteer sheet; you can close this.`;
     render(); openVolForm(key);
-    volSave(key, r, role, name, pending ? game.newRows : null);
+    volSave(key, r, role, name);
     return;
   });
   if (!dlg.open) dlg.showModal();
