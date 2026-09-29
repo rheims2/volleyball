@@ -41,8 +41,6 @@
   .spin { width: 14px; height: 14px; border: 2px solid var(--navy); border-right-color: transparent; border-radius: 50%; display: none; }
   .loading .spin { display: inline-block; animation: turn .8s linear infinite; }
   @keyframes turn { to { transform: rotate(360deg); } }
-  .auto { font-size: 14px; color: #D5DCEA; display: flex; gap: 5px; align-items: center; cursor: pointer; }
-  .auto input { accent-color: var(--gold); width: 15px; height: 15px; margin: 0; }
   .linkish { background: none; border: 0; color: #B8C3D9; font: 500 15px Barlow, sans-serif; text-decoration: underline; cursor: pointer; padding: 4px; }
 
   .event { color: #B8C3D9; font-size: 13px; margin-bottom: 2px; }
@@ -171,7 +169,6 @@
       <h1 id="title">Pool results</h1>
       <div class="status-row">
         <span class="status" id="status" aria-live="polite">Loading results…</span>
-        <label class="auto" title="Refresh the results every minute"><input type="checkbox" id="autoChk"> Auto-refresh</label>
       </div>
     </div>
     <button class="refresh" id="refreshBtn" type="button"><span class="spin" aria-hidden="true"></span><span id="refreshLabel">Refresh</span></button>
@@ -244,7 +241,6 @@ const SAVED_LIST = {
   ]
 };
 const DIVISIONS = SAVED_LIST.divs;
-const AUTO_SECONDS = 60;
 const KEY = "nchvc-pool-viewer-v2";
 
 /* ---------------- parsing (works from labels, not fixed cell addresses) ---------------- */
@@ -601,9 +597,9 @@ function loadViaScript(parts) {
 }
 
 /* ---------------- state ---------------- */
-let settings = load();                 // { division, follow, custom: [], auto }
+let settings = load();                 // { division, follow, custom: [], stage, sharedFilters, chosen }
 const store = {};                      // division id -> cached results
-let flashKeys = new Set(), autoTimer = null, setup = false;
+let flashKeys = new Set(), setup = false;
 const $ = id => document.getElementById(id);
 
 function load() { try { return { custom: [], ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (e) { return { custom: [] }; } }
@@ -1247,14 +1243,8 @@ $("followSel").addEventListener("change", e => {
   }
   render();
 });
-$("autoChk").addEventListener("change", e => setAuto(e.target.checked));
-function setAuto(on) {
-  clearInterval(autoTimer);
-  if (on) autoTimer = setInterval(() => { if (!setup && !document.hidden) refresh(); }, AUTO_SECONDS * 1000);
-  settings.auto = on; save();
-}
 setInterval(updateStatus, 30000);
-if (settings.auto) { $("autoChk").checked = true; setAuto(true); }
+if ("auto" in settings) { delete settings.auto; save(); }   // auto-refresh was removed; forget the old setting
 render();
 (async () => { await loadConfig(); render(); refresh(); })();
 </script>
