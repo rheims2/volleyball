@@ -192,6 +192,26 @@
   .ghost { font: 600 16px Barlow, sans-serif; background: transparent; color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 10px 20px; cursor: pointer; }
 
   :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  /* Volunteer spots: a button on each of our games that has a row in the volunteer sheet, and the sign-up form */
+  .volrow { margin-top: 8px; }
+  .volbtn { font: 700 14px Barlow, sans-serif; color: var(--navy); background: #FFF6D6; border: 1.5px solid var(--gold); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  .volbtn.full { background: transparent; border-color: var(--line); color: var(--muted); font-weight: 600; }
+  .volform { border: 0; border-radius: 14px; padding: 0; width: min(440px, calc(100vw - 24px)); max-height: calc(100vh - 40px); color: var(--ink); box-shadow: 0 16px 40px rgba(19, 41, 75, .35); }
+  .volform::backdrop { background: rgba(19, 41, 75, .45); }
+  .volform form { padding: 18px; }
+  .volform h2 { font: 700 26px/1.1 "Barlow Condensed", sans-serif; margin: 0 0 4px; }
+  .volform .sub { color: var(--muted); font-size: 15px; margin: 0 0 12px; }
+  .volform h3 { font-size: 15px; margin: 14px 0 6px; }
+  .volform .spot { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; }
+  .volform .spot input { accent-color: var(--navy); width: 18px; height: 18px; }
+  .volform .spot.taken { color: var(--muted); background: var(--paper); }
+  .volform .spot .who { margin-left: auto; font-size: 14px; }
+  .volform label.name { display: block; font-weight: 600; margin: 14px 0 4px; }
+  .volform input[type=text] { width: 100%; font: 500 16px Barlow, sans-serif; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; }
+  .volform .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .volform .ghost { padding: 7px 18px; font-size: 15px; }
+  .volform .err { color: var(--bad); font-size: 14px; margin: 10px 0 0; }
+  .volform .ok { background: #E7F4EC; color: var(--win); border-radius: 8px; padding: 10px 12px; font-weight: 600; }
   /* Add to Home Screen: a card at the bottom on the first visit from a phone, and a button at the end of the page */
   [hidden] { display: none !important; }
   .pagefoot { text-align: center; padding: 0 16px calc(28px + env(safe-area-inset-bottom, 0px)); margin-top: -12px; }
@@ -242,6 +262,7 @@
 </div>
 <main id="main"></main>
 <footer class="pagefoot"><button class="ghost" id="installBtn" type="button" hidden>Add to Home Screen</button></footer>
+<dialog class="volform" id="volForm" aria-labelledby="volTitle"></dialog>
 <div class="install" id="install" role="dialog" aria-labelledby="installTitle" hidden>
   <img src="icons/apple-touch-icon.png" alt="" width="52" height="52">
   <div>
@@ -269,6 +290,8 @@ const CONFIG_SHEET = VIEWER_CONFIG.divisionsSheet || "";
 const API_KEY = VIEWER_CONFIG.sheetsApiKey || "";
 // The club's volunteer sign-up sheet (config.js volunteerSheet), linked in the header
 const VOLUNTEER_SHEET = VIEWER_CONFIG.volunteerSheet || "";
+// Google Apps Script web app that writes a sign-up into the volunteer sheet (see volunteer-script.gs)
+const VOLUNTEER_SCRIPT = VIEWER_CONFIG.volunteerScript || "";
 const INDEX_SHEET = VIEWER_CONFIG.indexSheet || "https://docs.google.com/spreadsheets/d/1BMqNRKu8dxVG3EzBou6Kv1jYtITo_4baXkJebuHOcbI/edit?gid=760812890#gid=760812890";
 
 /* The last division discovery from the NCHVC bracket index (tabs checked readable by the
@@ -1074,7 +1097,7 @@ function clubIndex() {
       p.matches.forEach((x, i) => {
         if (!x.a && !x.b) return;
         const aw = x.sets.filter(([u, v]) => u > v).length, bw = x.sets.length - aw;
-        games.push({ ids: [add(x.a), add(x.b)], a: x.a, b: x.b, where: `${d.name} · ${p.name}`, day: x.day, time: x.time,
+        games.push({ ids: [add(x.a), add(x.b)], a: x.a, b: x.b, where: `${d.name} · ${p.name}`, day: x.day, time: x.time, vol: volKey(d, p.name, x.num),
           start: est[i] != null ? est[i] : toMinutes(x.time), est: est[i] != null, court: x.court, sets: x.sets,
           played: x.played, winner: !x.played ? null : aw > bw ? "a" : bw > aw ? "b" : "split", d });
       });
@@ -1147,7 +1170,7 @@ function renderClub() {
         <div class="gwhere">${esc(g.where)}</div>
         <div class="side ${res("a")}${ourSide[0] ? " ours" : ""}"><span class="nm">${nm(g.a)}</span><span class="sets">${setCells(0)}</span></div>
         <div class="side ${res("b")}${ourSide[1] ? " ours" : ""}"><span class="nm">${nm(g.b)}</span><span class="sets">${setCells(1)}</span></div>
-        ${g.forfeit ? `<div class="foot" style="color:var(--muted);font-size:14px;margin-top:6px">${esc(g.forfeit)} didn't show (forfeit)</div>` : ""}</li>`;
+        ${g.forfeit ? `<div class="foot" style="color:var(--muted);font-size:14px;margin-top:6px">${esc(g.forfeit)} didn't show (forfeit)</div>` : ""}${volButton(g.vol)}</li>`;
     }).join("") + (lastDay !== null ? "</ol></section>" : "");
     html += !picked.size ? `<div class="msg"><h2>Pick your teams</h2><p>Tap “Pick your teams”, tick the ones you follow, then Done.</p></div>`
       : list.length ? items : `<div class="msg"><p>No matches yet for these teams.</p></div>`;
@@ -1203,6 +1226,104 @@ function estimateStarts(matches) {
     return est;
   });
 }
+
+/* ---------------- Volunteer spots ----------------
+   The club's volunteer sheet has a row per game for each of our teams: Day, Time, Court, Eclipse Team,
+   Home/Away, Opponent, Match ("B16u Pool A M4"), then one column per job (Line Judge, Bookkeeper,
+   Scoreboard Operator, Libero Tracker). A blank job cell is an open spot, "N/A" means that team
+   doesn't cover it (the home team gives a line judge and a bookkeeper; the visiting team a line judge,
+   a scoreboard operator and a libero tracker), anything else is who signed up. It's read like the
+   score sheets (public CSV); sign-ups go through the sheet's Apps Script (VOLUNTEER_SCRIPT), which
+   only ever fills an empty cell. */
+const vol = { rows: [], roles: [], at: 0, busy: false };
+const VOL_INFO = ["day", "time", "court", "eclipse team", "team", "home/away", "opponent", "match"];
+const volNorm = v => String(v || "").toLowerCase().replace(/pool/g, "").replace(/[^a-z0-9]/g, "");
+const isNA = v => /^n\/?a$/i.test(String(v).trim());
+// "G16u Pool A M1" for Girls 16U, Pool A, match 1 ("GJV" for Girls JV)
+function volKey(d, poolName, num) {
+  const t = tagsOf(d); if (!t.gender || !t.age || !num) return "";
+  return volNorm(`${t.gender[0]}${t.age === "JV" ? "JV" : t.age.toLowerCase()} ${poolName} M${num}`);
+}
+async function loadVolunteers(force) {
+  const parts = linkParts(VOLUNTEER_SHEET);
+  if (!parts || vol.busy || (!force && Date.now() - vol.at < 60000)) return;
+  vol.busy = true;
+  try {
+    const rows = await fetchRows(parts);
+    const h = rows.findIndex(r => r.some(v => /^match$/i.test(v.trim())));
+    if (h >= 0) {
+      const head = rows[h].map(v => v.trim());
+      const col = name => head.findIndex(v => v.toLowerCase() === name);
+      const c = { day: col("day"), time: col("time"), court: col("court"), team: col("eclipse team") >= 0 ? col("eclipse team") : col("team"), side: col("home/away"), opp: col("opponent"), match: col("match") };
+      vol.roles = head.filter(v => v && !VOL_INFO.includes(v.toLowerCase()));
+      vol.rows = rows.slice(h + 1).filter(r => (r[c.match] || "").trim()).map(r => ({
+        day: r[c.day] || "", time: r[c.time] || "", court: r[c.court] || "", team: (r[c.team] || "").trim(), side: r[c.side] || "", opp: r[c.opp] || "",
+        match: r[c.match].trim(), key: volNorm(r[c.match]),
+        cells: Object.fromEntries(vol.roles.map(role => [role, (r[head.indexOf(role)] || "").trim()]))
+      }));
+      vol.at = Date.now();
+    }
+  } catch (e) { /* keep what we had; the buttons just don't show */ }
+  vol.busy = false;
+  render();
+}
+const volRowsFor = key => key ? vol.rows.filter(r => r.key === key) : [];
+const volOpen = rows => rows.reduce((n, r) => n + vol.roles.filter(role => !r.cells[role] && !isNA(r.cells[role])).length, 0);
+function volButton(key) {
+  const rows = volRowsFor(key); if (!rows.length) return "";
+  const open = volOpen(rows);
+  return `<div class="volrow"><button type="button" class="volbtn${open ? "" : " full"}" data-vol="${esc(key)}">${open ? `Volunteer · ${open} open` : "Volunteers ✓ all filled"}</button></div>`;
+}
+let volName = ""; try { volName = localStorage.getItem(KEY + "-volname") || ""; } catch (e) {}
+function openVolForm(key, done) {
+  const rows = volRowsFor(key); if (!rows.length) return;
+  const r0 = rows[0], dlg = $("volForm");
+  const spot = (r, role, i) => {
+    const v = r.cells[role];
+    if (isNA(v)) return "";
+    return v ? `<div class="spot taken"><span>${esc(role)}</span><span class="who">${esc(v)}</span></div>`
+      : `<label class="spot"><input type="radio" name="spot" value="${i}|${esc(role)}" required> <span>${esc(role)}</span></label>`;
+  };
+  const open = volOpen(rows);
+  dlg.innerHTML = `<form method="dialog" id="volF">
+    <h2 id="volTitle">Volunteer: ${esc(r0.match)}</h2>
+    <p class="sub">${esc([r0.day, r0.time, courtLabel(r0.court).replace(/^[A-Za-z ]+\s(\d+)$/, "Court $1")].filter(Boolean).join(" · "))}</p>
+    ${done ? `<p class="ok">${esc(done)}</p>` : ""}
+    ${rows.map((r, i) => `<h3>${esc(r.team)} · ${/home/i.test(r.side) ? "home team" : /away|visit/i.test(r.side) ? "visiting team" : esc(r.side)} vs ${esc(r.opp)}</h3>
+      ${vol.roles.map(role => spot(r, role, i)).join("")}`).join("")}
+    ${open && VOLUNTEER_SCRIPT ? `<label class="name" for="volNameIn">Your name</label>
+      <input type="text" id="volNameIn" autocomplete="name" maxlength="60" required value="${esc(volName)}" placeholder="First and last name">` : ""}
+    ${open && !VOLUNTEER_SCRIPT ? `<p class="sub" style="margin-top:12px">Sign-ups from this page aren't switched on yet. <a href="${esc(VOLUNTEER_SHEET)}" target="_blank" rel="noopener">Open the volunteer sheet</a>.</p>` : ""}
+    <p class="err" id="volErr" hidden></p>
+    <div class="actions">
+      <button type="button" class="ghost" id="volCancel">${open && VOLUNTEER_SCRIPT ? "Cancel" : "Close"}</button>
+      ${open && VOLUNTEER_SCRIPT ? `<button type="submit" class="refresh" id="volSubmit">Sign up</button>` : ""}
+    </div></form>`;
+  $("volCancel").addEventListener("click", () => dlg.close());
+  const f = $("volF");
+  f.addEventListener("submit", async e => {
+    e.preventDefault();
+    const pick = f.querySelector("input[name=spot]:checked"), name = $("volNameIn").value.trim();
+    const err = m => { $("volErr").textContent = m; $("volErr").hidden = false; };
+    if (!pick) return err("Pick a job.");
+    if (!name) return err("Add your name.");
+    const [i, role] = [+pick.value.split("|")[0], pick.value.slice(pick.value.indexOf("|") + 1)];
+    const r = rows[i];
+    $("volSubmit").disabled = true; $("volSubmit").textContent = "Signing up…";
+    try {
+      // text/plain keeps it a simple request, which Apps Script answers without a CORS preflight
+      const res = await fetch(VOLUNTEER_SCRIPT, { method: "POST", body: JSON.stringify({ match: r.match, team: r.team, role, name }) });
+      const out = await res.json();
+      volName = name; try { localStorage.setItem(KEY + "-volname", name); } catch (e) {}
+      if (out.ok) { r.cells[role] = name; render(); openVolForm(key, `Thank you, ${name}! You're the ${role} for ${r.team}.`); return; }
+      if (out.error === "taken" || out.error === "notneeded") { r.cells[role] = out.value || "N/A"; render(); openVolForm(key); return err("Someone just took that spot. Pick another."); }
+      err("Couldn't sign you up (" + (out.error || "unknown") + "). Try again, or use the volunteer sheet.");
+    } catch (e2) { err("Couldn't reach the sign-up sheet. Check your connection and try again."); }
+    $("volSubmit").disabled = false; $("volSubmit").textContent = "Sign up";
+  });
+  if (!dlg.open) dlg.showModal();
+}
+document.addEventListener("click", e => { const b = e.target.closest("button[data-vol]"); if (b) { openVolForm(b.dataset.vol); loadVolunteers(false); } });
 
 /* ---------------- rendering ---------------- */
 // Courts read "Court 7", whatever the venue name before the number ("New Century FH #7", "Sports Pavilion #3")
@@ -1307,7 +1428,7 @@ function render() {
     return `<li class="${(mine(m.a) || mine(m.b)).trim()}${fl("m" + m.num)}">
       <div class="mhead"><span>Match ${esc(m.num)}: ${day}${when}${where}</span>${tag}</div>
       <div class="side ${res[0]}"><span class="nm">${m.a ? esc(m.a) : `<em style="color:var(--muted);font-weight:400">To be decided</em>`}</span><span class="sets">${setCells(0)}</span></div>
-      <div class="side ${res[1]}"><span class="nm">${m.b ? esc(m.b) : `<em style="color:var(--muted);font-weight:400">To be decided</em>`}</span><span class="sets">${setCells(1)}</span></div></li>`;
+      <div class="side ${res[1]}"><span class="nm">${m.b ? esc(m.b) : `<em style="color:var(--muted);font-weight:400">To be decided</em>`}</span><span class="sets">${setCells(1)}</span></div>${volButton(volKey(d, p.name, m.num))}</li>`;
   }).join("");
 
   html += `<div class="pool-head"><h2>${esc(p.name)}</h2>${badge}<span class="where">${esc(courts.join(" and "))}</span>${sheet}</div>
@@ -1445,7 +1566,7 @@ function renderSetup() {
 }
 
 /* ---------------- wiring ---------------- */
-$("refreshBtn").addEventListener("click", async () => { await loadConfig(); render(); if (currentStage() === "club") loadClub(true); else refresh(); });
+$("refreshBtn").addEventListener("click", async () => { await loadConfig(); render(); loadVolunteers(true); if (currentStage() === "club") loadClub(true); else refresh(); });
 $("stages").addEventListener("click", e => {
   const b = e.target.closest("button[data-stage]"); if (!b || b.dataset.stage === currentStage() && !setup) return;
   settings.lastByStage = { ...(settings.lastByStage || {}), [currentStage()]: current().id };
@@ -1546,7 +1667,7 @@ updateInstallBtn();
 let installSeen = false; try { installSeen = !!localStorage.getItem(KEY + "-install-seen"); } catch (e) {}
 if ((IS_IOS || IS_ANDROID) && !standalone() && !installSeen) setTimeout(showInstall, 1500);
 render();
-(async () => { await loadConfig(); render(); if (currentStage() === "club") loadClub(false); else refresh(); })();
+(async () => { await loadConfig(); render(); loadVolunteers(true); if (currentStage() === "club") loadClub(false); else refresh(); })();
 </script>
 </body>
 </html>

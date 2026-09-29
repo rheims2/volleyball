@@ -17,5 +17,9 @@ window.VIEWER_CONFIG = {
 
   // The club's volunteer sign-up sheet, linked as "Volunteer sign-up" in the header.
   // Leave it blank ("") to hide the link.
-  volunteerSheet: "https://docs.google.com/spreadsheets/d/1sbBL62yQiCZQ3fAJvgpHHUpHhhvtCe0b9sJsamEXpws/edit?usp=drive_link"
+  volunteerSheet: "https://docs.google.com/spreadsheets/d/1sbBL62yQiCZQ3fAJvgpHHUpHhhvtCe0b9sJsamEXpws/edit?usp=drive_link",
+
+  // The volunteer sheet's Apps Script web app (see volunteer-script.gs), which saves sign-ups made on
+  // the page. Leave it blank ("") and the Volunteer buttons only show the spots and link to the sheet.
+  volunteerScript: ""
 };
