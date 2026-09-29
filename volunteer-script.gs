@@ -9,6 +9,15 @@
  * Eclipse Team match, and writes the name into that job's column only if the cell is empty,
  * so nobody can overwrite or clear a sign-up from the page. "N/A" cells are jobs that team
  * doesn't cover and are never filled.
+ *
+ * For a game that isn't in the sheet yet (bracket games, say), the viewer first sends
+ * { action: "add", rows: [{ day, time, court, team, side, opp, match, cells: { job: "" or "N/A" } }] }.
+ * Each row is appended unless the sheet already has that Match and Eclipse Team; job cells can
+ * only be blank or "N/A", so adding a row never signs anyone up. The answer lists the rows as
+ * they are in the sheet afterwards.
+ *
+ * After changing this code: Deploy > Manage deployments > edit (pencil) > Version: New version >
+ * Deploy. That keeps the same web app URL.
  */
 var INFO = ["day", "time", "court", "eclipse team", "team", "home/away", "opponent", "match"];
 
@@ -20,15 +29,70 @@ function reply(obj) {
 
 function doGet() { return reply({ ok: true, message: "Volunteer sign-up is running." }); }
 
+function clean(v, max) {
+  var s = String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, max || 80);
+  // A leading = + - @ would make the cell a formula
+  return /^[=+\-@]/.test(s) ? "'" + s : s;
+}
+
+// Appends the game's rows that aren't in the sheet yet
+function addRows(sheet, data, h, head, rows) {
+  var col = function (name) { return head.indexOf(name); };
+  var mc = col("match"), tc = col("eclipse team") >= 0 ? col("eclipse team") : col("team");
+  if (!Array.isArray(rows) || !rows.length || rows.length > 2) return reply({ ok: false, error: "rows" });
+  var out = [];
+  rows.forEach(function (r) {
+    if (!r || !clean(r.match) || !clean(r.team)) return;
+    var found = null;
+    for (var i = h + 1; i < data.length && !found; i++) {
+      if (norm(data[i][mc]) === norm(r.match) && String(data[i][tc]).trim() === clean(r.team)) found = data[i];
+    }
+    if (!found) {
+      found = head.map(function (hd) {
+        switch (hd) {
+          case "day": return clean(r.day, 20);
+          case "time": return clean(r.time, 30);
+          case "court": return clean(r.court, 30);
+          case "eclipse team": case "team": return clean(r.team, 20);
+          case "home/away": return /^home$/i.test(r.side) ? "Home" : "Away";
+          case "opponent": return clean(r.opp, 60);
+          case "match": return clean(r.match, 60);
+          default:
+            if (!hd || INFO.indexOf(hd) >= 0) return "";
+            var cells = r.cells || {}, v = "";
+            Object.keys(cells).forEach(function (k) { if (k.trim().toLowerCase() === hd) v = cells[k]; });
+            return /^n\/?a$/i.test(String(v).trim()) ? "N/A" : "";   // never a name
+        }
+      });
+      sheet.appendRow(found);
+      data.push(found.map(String));
+    }
+    var cellsOut = {};
+    head.forEach(function (hd, c) { if (hd && INFO.indexOf(hd) < 0) cellsOut[data[h][c].trim()] = String(found[c]).trim(); });
+    out.push({ day: String(found[col("day")] || ""), time: String(found[col("time")] || ""), court: String(found[col("court")] || ""),
+      team: String(found[tc]).trim(), side: String(found[col("home/away")] || ""), opp: String(found[col("opponent")] || ""),
+      match: String(found[mc]).trim(), cells: cellsOut });
+  });
+  return reply({ ok: true, rows: out });
+}
+
 function doPost(e) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(15000)) return reply({ ok: false, error: "busy" });
   try {
     var req = JSON.parse((e && e.postData && e.postData.contents) || "{}");
-    var name = String(req.name || "").replace(/\s+/g, " ").trim().slice(0, 60);
+    if (req.action === "add") {
+      var sh = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+      var dat = sh.getDataRange().getDisplayValues();
+      var hh = -1;
+      for (var k = 0; k < dat.length && hh < 0; k++) {
+        if (dat[k].some(function (v) { return String(v).trim().toLowerCase() === "match"; })) hh = k;
+      }
+      if (hh < 0) return reply({ ok: false, error: "nomatchcolumn" });
+      return addRows(sh, dat, hh, dat[hh].map(function (v) { return String(v).trim().toLowerCase(); }), req.rows);
+    }
+    var name = clean(req.name, 60);
     if (!name) return reply({ ok: false, error: "name" });
-    // A leading = + - @ would make the cell a formula
-    if (/^[=+\-@]/.test(name)) name = "'" + name;
 
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
     var data = sheet.getDataRange().getDisplayValues();
