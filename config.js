@@ -12,6 +12,9 @@ window.VIEWER_CONFIG = {
   // Change it when a new index is published, then rebuild the rows on the setup page (the viewer's address plus #setup).
   indexSheet: "https://docs.google.com/spreadsheets/d/1BMqNRKu8dxVG3EzBou6Kv1jYtITo_4baXkJebuHOcbI/edit?gid=760812890#gid=760812890",
 
+  // The club the My teams tab starts on (a visitor can pick another; blank starts on "Pick your club").
+  defaultClub: "Des Moines Eclipse",
+
   // The club's volunteer sign-up sheet, linked as "Volunteer sign-up" in the header.
   // Leave it blank ("") to hide the link.
   volunteerSheet: "https://docs.google.com/spreadsheets/d/1sbBL62yQiCZQ3fAJvgpHHUpHhhvtCe0b9sJsamEXpws/edit?usp=drive_link"

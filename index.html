@@ -65,9 +65,27 @@
   .filters select { font: 500 14px Barlow, sans-serif; padding: 7px 8px; border-radius: 8px; border: 0; background: #fff; color: var(--ink); max-width: 100%; }
   .filters select.set { outline: 2px solid var(--gold); outline-offset: -2px; font-weight: 700; }
   .filters .linkish { padding: 4px; font-size: 14px; }
+  /* My teams: club dropdown, team checklist and the combined schedule */
+  .club-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; margin-bottom: 16px; position: relative; }
+  .club-controls select { font: 500 15px Barlow, sans-serif; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink); max-width: 100%; }
+  .teampick { position: static; }
+  .teampick summary { list-style: none; cursor: pointer; font: 600 15px Barlow, sans-serif; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+  .teampick summary::-webkit-details-marker { display: none; }
+  .teampick summary::after { content: "▾"; margin-left: 8px; color: var(--muted); }
+  /* anchored to the controls row, so it never runs off the right edge of a phone */
+  .teampick .teamlist { position: absolute; z-index: 3; top: calc(100% + 4px); left: 0; min-width: 220px; max-width: 100%; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px; box-shadow: 0 8px 24px rgba(19,41,75,.18); }
+  .teamlist label { display: flex; gap: 8px; align-items: center; padding: 6px 4px; cursor: pointer; white-space: nowrap; }
+  .teamlist input { accent-color: var(--navy); width: 17px; height: 17px; }
+  .teamlist .row { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 6px; gap: 6px; }
+  .teamlist .ghost { padding: 5px 12px; font-size: 14px; }
+  .teamlist .refresh { padding: 5px 16px; font-size: 14px; margin-left: auto; }
+  .dayhead { font: 700 24px "Barlow Condensed", sans-serif; margin: 18px 0 8px; }
+  .gwhere { font-size: 14px; font-weight: 600; color: var(--navy-2); margin: -4px 0 6px; }
+  .side.ours .nm { font-weight: 700; color: var(--ink); }
+  .side.ours .nm::after { content: "★"; color: var(--gold); font-size: 13px; margin-left: 2px; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   @media (max-width: 600px) {
-    .stages { order: -1; width: 100%; } .stages button { flex: 1; }
+    .stages { order: -1; width: 100%; } .stages button { flex: 1; white-space: nowrap; padding: 5px 6px; font-size: 16px; }
     .filters { width: 100%; } .filters label { flex: 1 1 0; min-width: 96px; } .filters select { width: 100%; }
   }
   .divgroup { display: flex; gap: 8px; align-items: center; }
@@ -181,6 +199,7 @@
   <div class="filterbar">
     <div class="filters" id="filters" aria-label="Filters"></div>
     <div class="stages" id="stages" role="group" aria-label="Tournament stage">
+      <button type="button" data-stage="club">My teams</button>
       <button type="button" data-stage="pools">Pool play</button>
       <button type="button" data-stage="brackets">Bracket play</button>
     </div>
@@ -253,6 +272,8 @@ const DIVISIONS = SAVED_LIST.divs;
 const KEY = VIEWER_CONFIG.storageKey || "nchvc-pool-viewer-v2";
 // config.js siteLabel (e.g. "TEST") marks a test copy in the page title and header
 const SITE_LABEL = VIEWER_CONFIG.siteLabel || "";
+// Club the My teams tab starts on until a visitor picks one
+const DEFAULT_CLUB = VIEWER_CONFIG.defaultClub || "";
 
 /* ---------------- parsing (works from labels, not fixed cell addresses) ---------------- */
 function parseCSV(text) {
@@ -296,8 +317,13 @@ function parsePools(rows) {
     starts.forEach((st, i) => { st.end = i + 1 < starts.length ? starts[i + 1].r : rows.length; });
   }
 
+  // The day: the tab's "Days:" header ("Fri"), unless a "Friday Schedule-" section says otherwise
+  let tabDay = "";
+  rows.slice(0, 4).forEach(row => row.forEach((v, c) => { if (!tabDay && /^days:?$/i.test(v)) tabDay = row.slice(c + 1).find(Boolean) || ""; }));
+
   const pools = starts.map((st, i) => {
     const end = st.end;
+    let day = tabDay;
     const pool = { letter: st.letter, name: st.name, matches: [], teams: [], results: [], complete: false, grid: {}, slots: 0 };
     let seed = null, resRow = null;
     if (st.resRow != null) { resRow = st.resRow; pool.complete = (rows[resRow] || []).some(x => /^complete$/i.test(x)); }
@@ -305,6 +331,8 @@ function parsePools(rows) {
       const row = rows[r] || [];
       for (let c = 0; c < row.length; c++) {
         const v = row[c];
+        const dayHeader = v.match(/^(mon|tue|wed|thu|fri|sat|sun)[a-z]*\s+schedule/i);
+        if (dayHeader) { day = dayHeader[1]; break; }
         if (/^Match\s*#\s*\d+/i.test(v)) {
           const vs = row.findIndex((x, k) => k > c && /^vs\.?$/i.test(x));
           if (vs < 0) break;
@@ -313,7 +341,7 @@ function parsePools(rows) {
           let a = "", b = "";
           for (let k = vs - 1; k > c + 2 && !a; k--) a = real(row[k]);
           for (let k = vs + 1; k < row.length && !b; k++) b = real(row[k]);
-          pool.matches.push({ num: v.replace(/\D+/g, ""), court: at(r, c + 1), time: at(r, c + 2), a, b });
+          pool.matches.push({ num: v.replace(/\D+/g, ""), court: at(r, c + 1), time: at(r, c + 2), a, b, day });
           break;
         }
         if (v === "Seed" && !seed) { seed = { r, c }; break; }
@@ -846,7 +874,8 @@ async function updateDivisionList() {
   discovery = null;
   if (setup) renderListStatus();
 }
-const currentStage = () => settings.stage || typeOf(divisions().find(d => d.id === settings.division) || divisions()[0] || {});
+// My teams is the default tab until another is picked
+const currentStage = () => settings.stage || "club";
 /* Filter tags come from the divisions sheet's optional Gender, Age, Level and
    Bracket columns, or are read from the division name ("Girls 18U D1 Gold Ball"). */
 function tagsOf(d) {
@@ -905,7 +934,7 @@ function filterOptions(stage, key) {
 }
 const visibleDivisions = stage => divisions().filter(d => typeOf(d) === stage && fits(d, filtersFor(stage)));
 const current = () => {
-  const stage = settings.stage || typeOf(divisions().find(d => d.id === settings.division) || divisions()[0] || {});
+  const stage = currentStage();
   const list = visibleDivisions(stage);
   return list.find(d => d.id === settings.division) || list[0] || { id: "__none", name: "No matching divisions", type: stage, url: "" };
 };
@@ -955,18 +984,184 @@ async function refresh() {
   if (current().id === d.id) { busy(false); render(); }
 }
 
+/* ---------------- My teams ----------------
+   The first tab. Loads every division on the list, finds the teams of one club ("Des Moines
+   Eclipse (IA)" and "Des Moines Eclipse (IA)- 1" are both Des Moines Eclipse) and shows one
+   schedule of their pool and bracket matches, by day and time. */
+const club = { busy: false, done: 0, total: 0, lastUpdated: null, failed: [] };
+let teamPickOpen = false;
+const clubOf = name => String(name).replace(/\s*\([A-Z]{2,3}\)/g, "").replace(/\s*-\s*\w{1,3}\s*$/, "").trim();
+const teamSuffix = name => (String(name).replace(/\s*\([A-Z]{2,3}\)/g, "").match(/-\s*(\w{1,3})\s*$/) || [])[1] || "";
+const ageOf = d => { const t = tagsOf(d); return [t.gender, t.age].filter(Boolean).join(" ") || d.name; };
+const ageRank = age => (/^boys/i.test(age) ? 100 : 0) + (100 - (parseInt(age.replace(/\D+/g, "")) || (/jv/i.test(age) ? 17 : 0)));
+const DAYS = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 7 };
+const DAY_NAMES = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" };
+const dayKey = d => String(d || "").slice(0, 3).toLowerCase();
+
+// The team list also closes on a tap anywhere outside it, or on Escape
+document.addEventListener("click", e => { const p = $("teamPick"); if (p && p.open && !p.contains(e.target)) { teamPickOpen = false; p.open = false; } });
+document.addEventListener("keydown", e => { const p = $("teamPick"); if (e.key === "Escape" && p && p.open) { teamPickOpen = false; p.open = false; } });
+
+async function loadClub(force) {
+  if (club.busy) return;
+  const list = divisions();
+  club.busy = true; club.done = 0; club.total = list.length; club.failed = [];
+  busy(true); if (currentStage() === "club") render();
+  await eachLimit(list, 4, async d => {
+    const s = slot(d.id);
+    try {
+      if (force || !s.model || !s.lastUpdated || Date.now() - s.lastUpdated > 60000) {
+        const rows = await fetchRows(linkParts(d.url));
+        s.model = d.type === "brackets" ? parseBrackets(rows) : parsePools(rows);
+        s.lastUpdated = new Date(); s.error = null;
+      }
+    } catch (e) { club.failed.push(d.name); }
+    club.done++;
+    const bar = $("clubProgress"); if (bar) bar.textContent = `Loading divisions… ${club.done} of ${club.total}`;
+  });
+  club.busy = false; club.lastUpdated = new Date(); busy(false);
+  if (currentStage() === "club") render();
+}
+
+// Every team on the loaded divisions (id = age group + team name) and every match with a team in it
+function clubIndex() {
+  const teams = new Map(), games = [];
+  divisions().forEach(d => {
+    const m = slot(d.id).model; if (!m) return;
+    const age = ageOf(d);
+    const add = name => { if (!name) return null; const id = age + "|" + name; if (!teams.has(id)) teams.set(id, { id, club: clubOf(name), age, name, suffix: teamSuffix(name) }); return id; };
+    if (m.kind === "pools") m.pools.forEach(p => {
+      p.teams.forEach(t => add(t.team));
+      const est = estimateStarts(p.matches);
+      p.matches.forEach((x, i) => {
+        if (!x.a && !x.b) return;
+        const aw = x.sets.filter(([u, v]) => u > v).length, bw = x.sets.length - aw;
+        games.push({ ids: [add(x.a), add(x.b)], a: x.a, b: x.b, where: `${d.name} · ${p.name}`, day: x.day, time: x.time,
+          start: est[i] != null ? est[i] : toMinutes(x.time), est: est[i] != null, court: x.court, sets: x.sets,
+          played: x.played, winner: !x.played ? null : aw > bw ? "a" : bw > aw ? "b" : "split", d });
+      });
+    });
+    else m.brackets.forEach(g => [...g.rounds, ...(g.extra || [])].forEach(rd => rd.matches.forEach(x => {
+      const a = x.top && x.top.team, b = x.bottom && x.bottom.team;
+      if (!a && !b) return;
+      const winner = x.winner === "top" ? "a" : x.winner === "bottom" ? "b" : null;
+      // bracket scores are from the winner's side; turn them to the top team's side
+      const sets = winner === "b" ? x.sets.map(([u, v]) => [v, u]) : x.sets;
+      const label = g.label && !/^champion$/i.test(g.label) && !d.name.toLowerCase().includes(g.label.toLowerCase()) ? ` ${g.label}` : "";
+      games.push({ ids: [add(a), add(b)], a, b, where: `${d.name}${label} · ${rd.name}`, day: x.day, time: x.time,
+        start: toMinutes(x.time), est: false, court: x.court, sets, played: !!winner, winner, forfeit: x.forfeit, d });
+    })));
+  });
+  return { teams, games };
+}
+
+function renderClub() {
+  $("bar").hidden = true;
+  $("title").textContent = "My teams";
+  document.title = (SITE_LABEL ? SITE_LABEL + " · " : "") + "My teams";
+  $("eventLine").textContent = eventName();
+  busy(club.busy);
+  const { teams, games } = clubIndex();
+  const all = [...teams.values()];
+  const clubs = [...new Set(all.map(t => t.club))].sort((a, b) => a.localeCompare(b));
+  const wanted = settings.club === undefined ? clubs.find(c => c.toLowerCase() === DEFAULT_CLUB.toLowerCase()) : settings.club;
+  const cur = clubs.includes(wanted) ? wanted : "";
+  const mine = all.filter(t => t.club === cur).sort((a, b) => ageRank(a.age) - ageRank(b.age) || a.suffix.localeCompare(b.suffix, undefined, { numeric: true }));
+  // No teams are picked until they're chosen in the list
+  const picked = new Set(settings.clubTeamsFor === cur && settings.clubTeams ? settings.clubTeams.filter(id => mine.some(t => t.id === id)) : []);
+  const label = t => t.age + (t.suffix ? ` – ${t.suffix}` : "");
+  const summary = !mine.length ? "No teams" : !picked.size ? "Pick your teams" : picked.size === mine.length ? `All teams (${mine.length})` : picked.size <= 2 ? mine.filter(t => picked.has(t.id)).map(label).join(", ") : `${picked.size} of ${mine.length} teams`;
+
+  let html = notices();
+  html += `<div class="club-controls">
+    <label><span class="sr">Club</span><select id="clubSel"><option value="">${clubs.length ? "Pick your club…" : "Loading clubs…"}</option>${
+      clubs.map(c => `<option ${c === cur ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+    ${cur ? `<details class="teampick" id="teamPick" ${teamPickOpen ? "open" : ""}><summary>${esc(summary)}</summary><div class="teamlist">${
+      mine.map(t => `<label><input type="checkbox" data-team="${esc(t.id)}" ${picked.has(t.id) ? "checked" : ""}> ${esc(label(t))}</label>`).join("")}
+      <div class="row"><button type="button" class="ghost" id="teamsAll">All</button><button type="button" class="ghost" id="teamsNone">None</button><button type="button" class="refresh" id="teamsDone">Done</button></div></div></details>` : ""}
+  </div>`;
+  if (club.busy) html += `<p class="note" id="clubProgress" style="padding:0">Loading divisions… ${club.done} of ${club.total}</p>`;
+  if (club.failed.length) html += `<div class="msg err"><p>Couldn't load: ${esc(club.failed.join(", "))}.</p></div>`;
+
+  if (!cur) {
+    html += clubs.length ? `<div class="msg"><h2>Pick your club</h2><p>Then pick your teams to see one schedule of all their pool and bracket matches, by day and time.</p></div>` : "";
+  } else {
+    const ours = new Set([...picked]);
+    const list = games.filter(g => g.ids.some(id => ours.has(id)))
+      .sort((x, y) => (DAYS[dayKey(x.day)] || 9) - (DAYS[dayKey(y.day)] || 9) || (x.start ?? 9999) - (y.start ?? 9999) || x.where.localeCompare(y.where));
+    const next = list.find(g => !g.played && g.a && g.b);
+    let lastDay = null;
+    const items = list.map(g => {
+      let head = "";
+      const dk = dayKey(g.day);
+      if (dk !== lastDay) { head = `${lastDay !== null ? "</ol></section>" : ""}<h3 class="dayhead">${esc(DAY_NAMES[dk] || "Day to be set")}</h3><section class="card"><ol class="matches">`; lastDay = dk; }
+      const when = g.est ? `<span title="Follows previous match; estimated at ${MATCH_MINUTES} minutes a match">Est. ${clock(g.start)}</span>`
+        : g.start != null ? esc(g.time) : /rolling/i.test(g.time) ? "Follows previous match" : "Time to be set";
+      const where = g.court ? `, ${esc(g.court.replace(/^Sports Pavilion\s*#?\s*/i, "Court "))}` : "";
+      const ourSide = [ours.has(g.ids[0]), ours.has(g.ids[1])];
+      const res = side => g.winner === "split" ? "none" : !g.winner ? "none" : g.winner === side ? "won" : "lost";
+      const setCells = i => g.sets.map(([u, v]) => { const me = i ? v : u, them = i ? u : v; return `<span class="${me > them ? "w" : ""}">${me}</span>`; }).join("");
+      const oneOurs = ourSide[0] !== ourSide[1];
+      const ourResult = oneOurs && g.winner && g.winner !== "split" ? ((g.winner === "a") === ourSide[0] ? "Won" : "Lost") : "";
+      const tag = g.played ? `<span class="tag final">${g.winner === "split" ? "Split" : ourResult || "Final"}</span>` : g === next ? `<span class="tag next">Up next</span>` : "";
+      const nm = n => n ? esc(n) : `<em style="color:var(--muted);font-weight:400">To be decided</em>`;
+      return `${head}<li><div class="mhead"><span>${when}${where}</span>${tag}</div>
+        <div class="gwhere">${esc(g.where)}</div>
+        <div class="side ${res("a")}${ourSide[0] ? " ours" : ""}"><span class="nm">${nm(g.a)}</span><span class="sets">${setCells(0)}</span></div>
+        <div class="side ${res("b")}${ourSide[1] ? " ours" : ""}"><span class="nm">${nm(g.b)}</span><span class="sets">${setCells(1)}</span></div>
+        ${g.forfeit ? `<div class="foot" style="color:var(--muted);font-size:14px;margin-top:6px">${esc(g.forfeit)} didn't show (forfeit)</div>` : ""}</li>`;
+    }).join("") + (lastDay !== null ? "</ol></section>" : "");
+    html += !picked.size ? `<div class="msg"><h2>Pick your teams</h2><p>Tap “Pick your teams”, tick the ones you follow, then Done.</p></div>`
+      : list.length ? items : `<div class="msg"><p>No matches yet for these teams.</p></div>`;
+    if (picked.size) html += `<p class="note" style="padding:12px 0 0">Bracket matches show up here once teams are placed in the brackets. ★ marks your teams.</p>`;
+  }
+  $("main").innerHTML = html;
+
+  $("clubSel").addEventListener("change", e => { settings.club = e.target.value; settings.clubTeamsFor = ""; settings.clubTeams = null; teamPickOpen = false; save(); render(); });
+  const pick = $("teamPick");
+  if (pick) {
+    pick.addEventListener("toggle", () => { teamPickOpen = pick.open; });
+    const setTeams = ids => { settings.clubTeamsFor = cur; settings.clubTeams = ids; save(); render(); };
+    pick.querySelectorAll("input[data-team]").forEach(cb => cb.addEventListener("change", () =>
+      setTeams([...pick.querySelectorAll("input[data-team]:checked")].map(x => x.dataset.team))));
+    $("teamsAll").addEventListener("click", () => setTeams(mine.map(t => t.id)));
+    $("teamsNone").addEventListener("click", () => setTeams([]));
+    $("teamsDone").addEventListener("click", () => { teamPickOpen = false; pick.open = false; });
+  }
+}
+
 function busy(on) {
   $("refreshBtn").disabled = on; $("refreshBtn").classList.toggle("loading", on);
   $("refreshLabel").textContent = on ? "Refreshing…" : "Refresh";
 }
 
 function updateStatus() {
-  const s = slot(current().id);
+  const s = currentStage() === "club" && !setup ? { lastUpdated: club.lastUpdated, error: club.failed.length && !club.lastUpdated } : slot(current().id);
   if (!s.lastUpdated) { $("status").textContent = s.error ? "Couldn't load results" : "Loading results…"; return; }
   const mins = Math.floor((Date.now() - s.lastUpdated) / 60000);
   const time = s.lastUpdated.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const ago = mins < 1 ? "just now" : mins === 1 ? "1 minute ago" : `${mins} minutes ago`;
   $("status").innerHTML = `Updated ${time} <span class="${mins >= 10 ? "stale" : ""}">(${ago})</span>`;
+}
+
+/* "Rolling" matches ("Follows previous match") get an estimated start: 45 minutes after
+   the previous match on the same court (its listed time, or its own estimate), or after
+   the previous match in the pool when there's no court. Returns the estimates (minutes
+   after midnight) by match, null where the sheet gives a time. */
+const MATCH_MINUTES = 45;
+const toMinutes = t => { const x = String(t).match(/(\d{1,2}):(\d{2})\s*([ap])\.?\s*m/i); return x ? (+x[1] % 12 + (/p/i.test(x[3]) ? 12 : 0)) * 60 + +x[2] : null; };
+const clock = n => { const h = Math.floor(n / 60) % 24; return `${h % 12 || 12}:${String(n % 60).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
+function estimateStarts(matches) {
+  const lastOnCourt = {}; let lastInPool = null;
+  return matches.map(m => {
+    let start = toMinutes(m.time), est = null;
+    if (start == null && /rolling/i.test(m.time)) {
+      const prev = m.court && lastOnCourt[m.court] != null ? lastOnCourt[m.court] : lastInPool;
+      if (prev != null) start = est = prev + MATCH_MINUTES;
+    }
+    if (start != null) { if (m.court) lastOnCourt[m.court] = start; lastInPool = start; }
+    return est;
+  });
 }
 
 /* ---------------- rendering ---------------- */
@@ -987,6 +1182,7 @@ function renderDivisions() {
   }).join("") + (active.some(x => f[x.key]) ? `<button type="button" class="linkish" id="clearFilters">Clear</button>` : "");
   const list = visibleDivisions(stage);
   $("divs").innerHTML = list.map(btn).join("");
+  $("divs").hidden = !list.length;
 }
 
 const notices = () => { baseDivisions(); return [configWarning, mergeWarning].filter(Boolean).map(w => `<div class="msg err"><p>${esc(w)}</p></div>`).join(""); };
@@ -997,6 +1193,7 @@ function render() {
   $("eventLine").textContent = eventName() + (d.type === "brackets" ? " bracket play" : " pool play");
   renderDivisions(); updateStatus(); busy(s.busy);
   if (setup) { $("bar").hidden = true; return renderSetup(); }
+  if (currentStage() === "club") return renderClub();
   if (d.id === "__none") {
     $("bar").hidden = true; $("status").textContent = "";
     $("eventLine").textContent = eventName();
@@ -1049,22 +1246,7 @@ function render() {
     : "Unofficial order by sets won, then point difference. Final placement comes from the tournament once the pool is complete.";
   if (p.resultsNote) standNote += " " + p.resultsNote;
 
-  /* "Rolling" matches ("Follows previous match") get an estimated start: 45 minutes after
-     the previous match on the same court (its listed time, or its own estimate), or after
-     the previous match in the pool when there's no court. */
-  const MATCH_MINUTES = 45;
-  const toMinutes = t => { const x = String(t).match(/(\d{1,2}):(\d{2})\s*([ap])\.?\s*m/i); return x ? (+x[1] % 12 + (/p/i.test(x[3]) ? 12 : 0)) * 60 + +x[2] : null; };
-  const clock = n => { const h = Math.floor(n / 60) % 24; return `${h % 12 || 12}:${String(n % 60).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
-  const lastOnCourt = {}; let lastInPool = null;
-  const estimates = p.matches.map(m => {
-    let start = toMinutes(m.time), est = null;
-    if (start == null && /rolling/i.test(m.time)) {
-      const prev = m.court && lastOnCourt[m.court] != null ? lastOnCourt[m.court] : lastInPool;
-      if (prev != null) start = est = prev + MATCH_MINUTES;
-    }
-    if (start != null) { if (m.court) lastOnCourt[m.court] = start; lastInPool = start; }
-    return est;
-  });
+  const estimates = estimateStarts(p.matches);
   const matches = p.matches.map((m, i) => {
     const aw = m.sets.filter(([x, y]) => x > y).length, bw = m.sets.length - aw;
     const res = !m.played ? ["none", "none"] : aw > bw ? ["won", "lost"] : bw > aw ? ["lost", "won"] : ["none", "none"];
@@ -1216,7 +1398,7 @@ function renderSetup() {
 }
 
 /* ---------------- wiring ---------------- */
-$("refreshBtn").addEventListener("click", async () => { await loadConfig(); render(); refresh(); });
+$("refreshBtn").addEventListener("click", async () => { await loadConfig(); render(); if (currentStage() === "club") loadClub(true); else refresh(); });
 $("stages").addEventListener("click", e => {
   const b = e.target.closest("button[data-stage]"); if (!b || b.dataset.stage === currentStage() && !setup) return;
   settings.lastByStage = { ...(settings.lastByStage || {}), [currentStage()]: current().id };
@@ -1225,6 +1407,7 @@ $("stages").addEventListener("click", e => {
   const options = visibleDivisions(settings.stage);
   settings.division = (options.find(d => d.id === remembered) || options[0] || {}).id;
   leaveSetup(); flashKeys = new Set(); save(); render();
+  if (settings.stage === "club") return loadClub(false);
   const s = slot(current().id);
   if (!s.lastUpdated || Date.now() - s.lastUpdated > 30000) refresh();
 });
@@ -1276,7 +1459,7 @@ setInterval(updateStatus, 30000);
 if (VOLUNTEER_SHEET) { $("volunteerLink").href = VOLUNTEER_SHEET; $("volunteerLink").hidden = false; }
 if ("auto" in settings) { delete settings.auto; save(); }   // auto-refresh was removed; forget the old setting
 render();
-(async () => { await loadConfig(); render(); refresh(); })();
+(async () => { await loadConfig(); render(); if (currentStage() === "club") loadClub(false); else refresh(); })();
 </script>
 </body>
 </html>
