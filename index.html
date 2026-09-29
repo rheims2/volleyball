@@ -1098,7 +1098,7 @@ function renderClub() {
       if (dk !== lastDay) { head = `${lastDay !== null ? "</ol></section>" : ""}<h3 class="dayhead">${esc(DAY_NAMES[dk] || "Day to be set")}</h3><section class="card"><ol class="matches">`; lastDay = dk; }
       const when = g.est ? `<span title="Follows previous match; estimated at ${MATCH_MINUTES} minutes a match">Est. ${clock(g.start)}</span>`
         : g.start != null ? esc(g.time) : /rolling/i.test(g.time) ? "Follows previous match" : "Time to be set";
-      const where = g.court ? `, ${esc(g.court.replace(/^Sports Pavilion\s*#?\s*/i, "Court "))}` : "";
+      const where = g.court ? `, ${esc(courtLabel(g.court))}` : "";
       const ourSide = [ours.has(g.ids[0]), ours.has(g.ids[1])];
       const res = side => g.winner === "split" ? "none" : !g.winner ? "none" : g.winner === side ? "won" : "lost";
       const setCells = i => g.sets.map(([u, v]) => { const me = i ? v : u, them = i ? u : v; return `<span class="${me > them ? "w" : ""}">${me}</span>`; }).join("");
@@ -1168,6 +1168,8 @@ function estimateStarts(matches) {
 }
 
 /* ---------------- rendering ---------------- */
+// Courts read "Court 7", whatever the venue name before the number ("New Century FH #7", "Sports Pavilion #3")
+const courtLabel = c => String(c || "").trim().replace(/^.*?#\s*(\d+)\s*$/, "Court $1").replace(/^Sports Pavilion\s*/i, "Court ");
 const esc = v => String(v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const signed = n => n > 0 ? "+" + n : n < 0 ? "−" + Math.abs(n) : "0";
 
@@ -1230,7 +1232,7 @@ function render() {
   const p = model.pools.find(x => x.letter === s.active) || model.pools[0];
   const fl = k => flashKeys.has(`${p.letter}|${k}`) ? " flash" : "";
   const mine = t => settings.follow && t === settings.follow ? " mine" : "";
-  const courts = [...new Set(p.matches.map(m => m.court).filter(Boolean))];
+  const courts = [...new Set(p.matches.map(m => courtLabel(m.court)).filter(Boolean))];
   const badge = p.state === "final" ? `<span class="badge final">Final</span>` : p.state === "live" ? `<span class="badge live">In progress</span>` : `<span class="badge">Not started</span>`;
 
   let standings;
@@ -1260,7 +1262,7 @@ function render() {
     const dk = String(m.day || "").slice(0, 3).toLowerCase();
     const day = /^(mon|tue|wed|thu|fri|sat|sun)$/.test(dk) ? `<b class="mday">${dk[0].toUpperCase() + dk.slice(1)}</b> ` : "";
     // Every match shows its court, even when the whole pool plays on one
-    const where = m.court ? `, ${esc(m.court.replace(/^Sports Pavilion\s*#?\s*/i, "Court "))}` : "";
+    const where = m.court ? `, ${esc(courtLabel(m.court))}` : "";
     const tag = m.played ? (aw === bw ? `<span class="tag final">Split ${aw}–${bw}</span>` : `<span class="tag final">Final</span>`)
               : m.next ? `<span class="tag next">Up next</span>` : "";
     return `<li class="${(mine(m.a) || mine(m.b)).trim()}${fl("m" + m.num)}">
@@ -1290,7 +1292,7 @@ function renderBrackets(s, html) {
   const g = list.find(x => x.key === s.active) || list[0];
   const mine = t => settings.follow && t === settings.follow;
   const badge = g.state === "final" ? `<span class="badge final">Final</span>` : g.state === "live" ? `<span class="badge live">In progress</span>` : `<span class="badge">Not started</span>`;
-  const courtName = c => esc(String(c || "").replace(/^Sports Pavilion\s*#?\s*/i, "Court "));
+  const courtName = c => esc(courtLabel(c));
 
   const matchCard = (m, i, roundName) => {
     const sideHtml = (side) => {
