@@ -1097,7 +1097,9 @@ function clubIndex() {
       p.matches.forEach((x, i) => {
         if (!x.a && !x.b) return;
         const aw = x.sets.filter(([u, v]) => u > v).length, bw = x.sets.length - aw;
-        games.push({ ids: [add(x.a), add(x.b)], a: x.a, b: x.b, where: `${d.name} · ${p.name}`, day: x.day, time: x.time, vol: volKey(d, p.name, x.num),
+        games.push({ ids: [add(x.a), add(x.b)], a: x.a, b: x.b, where: `${d.name} · ${p.name}`, day: x.day, time: x.time,
+          vol: volGame(d, { match: volPoolMatch(d, p.name, x.num), a: x.a, b: x.b, day: x.day, court: x.court,
+            time: est[i] != null ? `${clock(est[i])} (est.)` : x.time }),
           start: est[i] != null ? est[i] : toMinutes(x.time), est: est[i] != null, court: x.court, sets: x.sets,
           played: x.played, winner: !x.played ? null : aw > bw ? "a" : bw > aw ? "b" : "split", d });
       });
@@ -1110,7 +1112,8 @@ function clubIndex() {
       const sets = winner === "b" ? x.sets.map(([u, v]) => [v, u]) : x.sets;
       const label = g.label && !/^champion$/i.test(g.label) && !d.name.toLowerCase().includes(g.label.toLowerCase()) ? ` ${g.label}` : "";
       games.push({ ids: [add(a), add(b)], a, b, where: `${d.name}${label} · ${rd.name}`, day: x.day, time: x.time,
-        start: toMinutes(x.time), est: false, court: x.court, sets, played: !!winner, winner, forfeit: x.forfeit, d });
+        start: toMinutes(x.time), est: false, court: x.court, sets, played: !!winner, winner, forfeit: x.forfeit, d,
+        vol: volGame(d, { match: volBracketMatch(d, m, x), a, b, day: x.day, court: x.court, time: String(x.time || "").toUpperCase() }) });
     })));
   });
   return { teams, games };
@@ -1239,10 +1242,61 @@ const vol = { rows: [], roles: [], at: 0, busy: false };
 const VOL_INFO = ["day", "time", "court", "eclipse team", "team", "home/away", "opponent", "match"];
 const volNorm = v => String(v || "").toLowerCase().replace(/pool/g, "").replace(/[^a-z0-9]/g, "");
 const isNA = v => /^n\/?a$/i.test(String(v).trim());
-// "G16u Pool A M1" for Girls 16U, Pool A, match 1 ("GJV" for Girls JV)
-function volKey(d, poolName, num) {
-  const t = tagsOf(d); if (!t.gender || !t.age || !num) return "";
-  return volNorm(`${t.gender[0]}${t.age === "JV" ? "JV" : t.age.toLowerCase()} ${poolName} M${num}`);
+// Division code for Match names and team codes: "G16u" for Girls 16U, "GJV" for Girls JV
+const volShort = d => { const t = tagsOf(d); return t.gender && t.age ? t.gender[0] + (t.age === "JV" ? "JV" : t.age.toLowerCase()) : ""; };
+// Our team's code in the sheet: "16UB1" for Boys 16U "Des Moines Eclipse (IA)- 1", "JVG" for Girls JV
+const volTeamCode = (d, name) => { const t = tagsOf(d); return (t.age === "JV" ? "JV" : t.age) + (t.gender || " ")[0] + teamSuffix(name); };
+// The club whose games get Volunteer buttons (and rows added when missing)
+const VOL_CLUB = VIEWER_CONFIG.volunteerClub || DEFAULT_CLUB;
+// Jobs each side covers; every other job column gets "N/A" on a row the page adds
+const VOL_JOBS = { home: ["line judge", "bookkeeper"], away: ["line judge", "scoreboard operator", "libero tracker"] };
+const volGames = new Map();
+/* A game of ours: { key, match, newRows }. newRows are the sheet rows to add the first time
+   its button is tapped when the sheet has none (the first team listed is the home team).
+   g = { match, a, b, day, time, court } */
+function volGame(d, g) {
+  if (!g.match) return null;
+  const key = volNorm(g.match);
+  const ours = [g.a, g.b].map(n => !!n && clubOf(n).toLowerCase() === VOL_CLUB.toLowerCase());
+  let newRows = [];
+  if ((ours[0] || ours[1]) && g.a && g.b && vol.roles.length && volShort(d)) {
+    const names = [g.a, g.b], word = VOL_CLUB.split(/\s+/).pop();
+    const dk = dayKey(g.day), known = vol.rows.find(r => dayKey(r.day) === dk);
+    const day = known ? known.day : dk ? dk[0].toUpperCase() + dk.slice(1) : "";
+    const court = /FH\s*#?\s*(\d+)\s*$/i.test(g.court || "") ? "FH " + g.court.match(/(\d+)\s*$/)[1] : courtLabel(g.court);
+    newRows = [0, 1].filter(i => ours[i]).map(i => {
+      const side = i === 0 ? "home" : "away", other = names[1 - i];
+      return { day, time: g.time || "", court, team: volTeamCode(d, names[i]), side: i === 0 ? "Home" : "Away",
+        opp: ours[1 - i] ? `${volTeamCode(d, other)} (${word})` : other, match: g.match,
+        cells: Object.fromEntries(vol.roles.map(role => [role, VOL_JOBS[side].includes(role.toLowerCase()) ? "" : "N/A"])) };
+    });
+  }
+  if (!newRows.length && !volRowsFor(key).length) return null;
+  const game = { key, match: g.match, newRows };
+  volGames.set(key, game);
+  return game;
+}
+// A pool match's Match name, as the sheet writes it: "G16u Pool A M1"
+const volPoolMatch = (d, poolName, num) => volShort(d) && num ? `${volShort(d)} ${poolName} M${num}` : "";
+/* A bracket match's Match name: its name on the tab ("G18u Gold Semi"), numbered when several
+   share it, in order down and across the tab ("G18u Gold Quarter 1" to "4") */
+function volBracketMatch(d, model, m) {
+  if (!model._volNames) {
+    const short = volShort(d), all = [];
+    model.brackets.forEach(g => [...g.rounds, ...(g.extra || [])].forEach(rd => rd.matches.forEach(x => {
+      let base = String(x.name || rd.name).trim();
+      if (short && !volNorm(base).startsWith(volNorm(short))) base = `${short} ${base}`;
+      all.push({ x, base });
+    })));
+    const names = new Map();
+    const byBase = {}; all.forEach(e => (byBase[volNorm(e.base)] = byBase[volNorm(e.base)] || []).push(e));
+    Object.values(byBase).forEach(list => {
+      list.sort((u, v) => u.x.r - v.x.r || u.x.c - v.x.c);
+      list.forEach((e, i) => names.set(e.x, list.length > 1 ? `${e.base} ${i + 1}` : e.base));
+    });
+    model._volNames = names;
+  }
+  return model._volNames.get(m) || "";
 }
 async function loadVolunteers(force) {
   const parts = linkParts(VOLUNTEER_SHEET);
@@ -1269,8 +1323,15 @@ async function loadVolunteers(force) {
 }
 const volRowsFor = key => key ? vol.rows.filter(r => r.key === key) : [];
 const volOpen = rows => rows.reduce((n, r) => n + vol.roles.filter(role => !r.cells[role] && !isNA(r.cells[role])).length, 0);
-function volButton(key) {
-  const rows = volRowsFor(key); if (!rows.length) return "";
+function volButton(game) {
+  if (!game) return "";
+  const key = game.key, rows = volRowsFor(key);
+  if (!rows.length) {
+    // Not in the sheet yet: its row is added the first time the button is tapped
+    if (!VOLUNTEER_SCRIPT || !game.newRows.length) return "";
+    const need = game.newRows.reduce((n, r) => n + Object.values(r.cells).filter(v => !v).length, 0);
+    return `<div class="volrow"><button type="button" class="volbtn" data-vol="${esc(key)}">Volunteer · ${need} open</button></div>`;
+  }
   const open = volOpen(rows);
   return `<div class="volrow"><button type="button" class="volbtn${open ? "" : " full"}" data-vol="${esc(key)}">${open ? `Volunteer · ${open} open` : "Volunteers ✓ all filled"}</button></div>`;
 }
@@ -1323,7 +1384,34 @@ function openVolForm(key, done) {
   });
   if (!dlg.open) dlg.showModal();
 }
-document.addEventListener("click", e => { const b = e.target.closest("button[data-vol]"); if (b) { openVolForm(b.dataset.vol); loadVolunteers(false); } });
+// Adds a game's rows to the sheet (the script skips any that are already there), then opens its form
+async function volAdd(game, btn) {
+  btn.disabled = true; btn.textContent = "Opening…";
+  try {
+    const res = await fetch(VOLUNTEER_SCRIPT, { method: "POST", body: JSON.stringify({ action: "add", rows: game.newRows }) });
+    const out = await res.json();
+    if (!out.ok) throw new Error(out.error || "unknown");
+    // The script answers with the rows as they are in the sheet now
+    (out.rows || game.newRows).forEach(r => {
+      if (!vol.rows.some(x => x.key === volNorm(r.match) && x.team === r.team))
+        vol.rows.push({ ...r, key: volNorm(r.match), cells: { ...r.cells } });
+    });
+    render(); openVolForm(game.key);
+  } catch (e) {
+    render();
+    const dlg = $("volForm");
+    dlg.innerHTML = `<form method="dialog"><h2 id="volTitle">Couldn't open sign-up</h2>
+      <p class="sub">${/name|role/.test(e.message) ? "The volunteer sheet's script needs updating to add new games (see volunteer-script.gs)." : "Couldn't reach the volunteer sheet. Check your connection and try again."}</p>
+      <div class="actions"><button type="submit" class="ghost">Close</button></div></form>`;
+    if (!dlg.open) dlg.showModal();
+  }
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("button[data-vol]"); if (!b) return;
+  const key = b.dataset.vol, game = volGames.get(key);
+  if (!volRowsFor(key).length && game && game.newRows.length) return volAdd(game, b);
+  openVolForm(key); loadVolunteers(false);
+});
 
 /* ---------------- rendering ---------------- */
 // Courts read "Court 7", whatever the venue name before the number ("New Century FH #7", "Sports Pavilion #3")
@@ -1428,7 +1516,8 @@ function render() {
     return `<li class="${(mine(m.a) || mine(m.b)).trim()}${fl("m" + m.num)}">
       <div class="mhead"><span>Match ${esc(m.num)}: ${day}${when}${where}</span>${tag}</div>
       <div class="side ${res[0]}"><span class="nm">${m.a ? esc(m.a) : `<em style="color:var(--muted);font-weight:400">To be decided</em>`}</span><span class="sets">${setCells(0)}</span></div>
-      <div class="side ${res[1]}"><span class="nm">${m.b ? esc(m.b) : `<em style="color:var(--muted);font-weight:400">To be decided</em>`}</span><span class="sets">${setCells(1)}</span></div>${volButton(volKey(d, p.name, m.num))}</li>`;
+      <div class="side ${res[1]}"><span class="nm">${m.b ? esc(m.b) : `<em style="color:var(--muted);font-weight:400">To be decided</em>`}</span><span class="sets">${setCells(1)}</span></div>${volButton(volGame(d, { match: volPoolMatch(d, p.name, m.num), a: m.a, b: m.b, day: m.day, court: m.court,
+        time: estimates[i] != null ? `${clock(estimates[i])} (est.)` : m.time }))}</li>`;
   }).join("");
 
   html += `<div class="pool-head"><h2>${esc(p.name)}</h2>${badge}<span class="where">${esc(courts.join(" and "))}</span>${sheet}</div>
@@ -1442,7 +1531,7 @@ function render() {
 }
 
 function renderBrackets(s, html, sheet) {
-  const model = s.model;
+  const model = s.model, d = current();
   const list = model.brackets.filter(g => g.matches.length);
   $("pools").innerHTML = list.map(g =>
     `<button type="button" data-pool="${esc(g.key)}" aria-pressed="${g.key === s.active}" class="${g.state === "final" ? "done" : ""}" aria-label="${esc(g.title)}${g.state === "final" ? ", final" : ""}">${esc(g.label)}</button>`).join("");
@@ -1472,7 +1561,8 @@ function renderBrackets(s, html, sheet) {
     return `<div class="bmatch${flash}${followed}">
       <div class="mhead"><span>${esc(when)}${m.court ? ", " + courtName(m.court) : ""}</span>${tag}</div>
       ${sideHtml("top")}${sideHtml("bottom")}
-      ${foot ? `<div class="foot">${foot}</div>` : ""}</div>`;
+      ${foot ? `<div class="foot">${foot}</div>` : ""}${volButton(volGame(d, { match: volBracketMatch(d, model, m), a: m.top && m.top.team, b: m.bottom && m.bottom.team,
+        day: m.day, court: m.court, time: String(m.time || "").toUpperCase() }))}</div>`;
   };
 
   const rounds = g.rounds.map(rd => `<div class="round"><h3>${esc(rd.name)}</h3><div class="slots">${
