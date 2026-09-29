@@ -1202,8 +1202,14 @@ $("stages").addEventListener("click", e => {
   const s = slot(current().id);
   if (!s.lastUpdated || Date.now() - s.lastUpdated > 30000) refresh();
 });
+/* Filtering can switch to another division by itself (the only one left). Clearing the
+   filters goes back to the division last chosen by tapping it on this stage, or to the
+   first one, rather than staying on the one the filters happened to leave. */
 function clearFilters() {
+  const stage = currentStage(), picked = (settings.chosen || {})[stage];
   settings.sharedFilters = {};
+  const list = visibleDivisions(stage);
+  settings.division = (list.find(d => d.id === picked) || list[0] || {}).id;
   save(); afterFilterChange();
 }
 function afterFilterChange() {
@@ -1222,7 +1228,8 @@ $("filters").addEventListener("click", e => { if (e.target.closest("#clearFilter
 $("divs").addEventListener("click", e => {
   if (e.target.closest("#addDiv")) { setup = true; render(); return; }
   const b = e.target.closest("button[data-div]"); if (!b) return;
-  setup = false; settings.division = b.dataset.div; save(); flashKeys = new Set();
+  setup = false; settings.division = b.dataset.div; flashKeys = new Set();
+  settings.chosen = { ...(settings.chosen || {}), [currentStage()]: b.dataset.div }; save();
   render();
   const s = slot(settings.division);
   if (!s.lastUpdated || Date.now() - s.lastUpdated > 30000) refresh();
