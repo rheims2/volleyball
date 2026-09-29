@@ -85,7 +85,7 @@ Brackets before seeding (the 2026 Regionals tabs, a few days before the event): 
 ## Features
 
 - Pool play / Bracket play switch; division buttons filtered by Boys or girls, Age group, Division (D1–D4) and Bracket (brackets only). Filters cascade and are shared by both stages, so they stay set when switching between Pool play and Bracket play (the Bracket choice is kept while on Pool play, where it doesn't apply).
-- Pool pages: standings plus match list with set scores, "Up next", per-match court when a pool uses several courts.
+- Pool pages: standings plus match list with set scores, "Up next", the court for every match (shown as written on the sheet, e.g. "New Century FH #4"; "Sports Pavilion #3" shortens to "Court 3").
 - Bracket pages: champion banner with award, rounds side by side (stacked on phones), placement matches (3rd place, consolation) below, loser destinations, results table.
 - Follow a team (highlights it and jumps to its pool/bracket), Refresh button, optional auto-refresh every 60 s, highlight of changed cells since last refresh.
 - "Add a division" saves only in the current browser; the divisions sheet is the shared source. That page also shows the rows for the divisions sheet with a Copy button, "Build rows from the NCHVC index" and the tabs that couldn't be read.

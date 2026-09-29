@@ -1030,7 +1030,8 @@ function render() {
     const res = !m.played ? ["none", "none"] : aw > bw ? ["won", "lost"] : bw > aw ? ["lost", "won"] : ["none", "none"];
     const setCells = side => m.sets.map(([x, y]) => { const me = side ? y : x, them = side ? x : y; return `<span class="${me > them ? "w" : ""}">${me}</span>`; }).join("");
     const when = /rolling/i.test(m.time) ? "Follows previous match" : esc(m.time);
-    const where = courts.length > 1 && m.court ? `, ${esc(m.court.replace(/^Sports Pavilion\s*#?\s*/i, "Court "))}` : "";
+    // Every match shows its court, even when the whole pool plays on one
+    const where = m.court ? `, ${esc(m.court.replace(/^Sports Pavilion\s*#?\s*/i, "Court "))}` : "";
     const tag = m.played ? (aw === bw ? `<span class="tag final">Split ${aw}–${bw}</span>` : `<span class="tag final">Final</span>`)
               : m.next ? `<span class="tag next">Up next</span>` : "";
     return `<li class="${(mine(m.a) || mine(m.b)).trim()}${fl("m" + m.num)}">
