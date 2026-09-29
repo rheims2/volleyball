@@ -125,7 +125,7 @@
   ol.matches li { padding: 12px 16px 14px; border-top: 1px solid var(--line); }
   ol.matches li:first-child { border-top: 0; }
   .mhead { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
-  .mhead .tag { font-weight: 700; }
+  .mhead .tag { font-weight: 700; white-space: nowrap; align-self: flex-start; }
   .tag.next { color: var(--navy); background: var(--gold); padding: 1px 8px; border-radius: 999px; }
   .tag.final { color: var(--win); }
   .side { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 3px 0; }
@@ -1035,11 +1035,28 @@ function render() {
     : "Unofficial order by sets won, then point difference. Final placement comes from the tournament once the pool is complete.";
   if (p.resultsNote) standNote += " " + p.resultsNote;
 
-  const matches = p.matches.map(m => {
+  /* "Rolling" matches ("Follows previous match") get an estimated start: 45 minutes after
+     the previous match on the same court (its listed time, or its own estimate), or after
+     the previous match in the pool when there's no court. */
+  const MATCH_MINUTES = 45;
+  const toMinutes = t => { const x = String(t).match(/(\d{1,2}):(\d{2})\s*([ap])\.?\s*m/i); return x ? (+x[1] % 12 + (/p/i.test(x[3]) ? 12 : 0)) * 60 + +x[2] : null; };
+  const clock = n => { const h = Math.floor(n / 60) % 24; return `${h % 12 || 12}:${String(n % 60).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
+  const lastOnCourt = {}; let lastInPool = null;
+  const estimates = p.matches.map(m => {
+    let start = toMinutes(m.time), est = null;
+    if (start == null && /rolling/i.test(m.time)) {
+      const prev = m.court && lastOnCourt[m.court] != null ? lastOnCourt[m.court] : lastInPool;
+      if (prev != null) start = est = prev + MATCH_MINUTES;
+    }
+    if (start != null) { if (m.court) lastOnCourt[m.court] = start; lastInPool = start; }
+    return est;
+  });
+  const matches = p.matches.map((m, i) => {
     const aw = m.sets.filter(([x, y]) => x > y).length, bw = m.sets.length - aw;
     const res = !m.played ? ["none", "none"] : aw > bw ? ["won", "lost"] : bw > aw ? ["lost", "won"] : ["none", "none"];
     const setCells = side => m.sets.map(([x, y]) => { const me = side ? y : x, them = side ? x : y; return `<span class="${me > them ? "w" : ""}">${me}</span>`; }).join("");
-    const when = /rolling/i.test(m.time) ? "Follows previous match" : esc(m.time);
+    const when = estimates[i] != null ? `<span title="Follows previous match; estimated at ${MATCH_MINUTES} minutes a match">Est. ${clock(estimates[i])}</span>`
+      : /rolling/i.test(m.time) ? "Follows previous match" : esc(m.time);
     // Every match shows its court, even when the whole pool plays on one
     const where = m.court ? `, ${esc(m.court.replace(/^Sports Pavilion\s*#?\s*/i, "Court "))}` : "";
     const tag = m.played ? (aw === bw ? `<span class="tag final">Split ${aw}–${bw}</span>` : `<span class="tag final">Final</span>`)
