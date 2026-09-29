@@ -9,7 +9,7 @@ A single-page viewer for NCHVC volleyball pool play and bracket play results (no
   - `divisionsSheet`: link to the user's divisions Google Sheet, the division list.
   - `sheetsApiKey`: Google Sheets API key, used only for division discovery. It's public by design, so it's restricted in Google Cloud Console to the Sheets API and the referrer `https://rheims2.github.io/volleyball/*`. Never put it in `index.html`.
   - `indexSheet`: the NCHVC bracket index the division list is built from. Now the 2026 Regionals index ("Bracket Index - Regionals - 2026 NCHVC", tab "Regionals Index", gid 760812890), which is also `index.html`'s default.
-  - `volunteerSheet`: the club's volunteer sign-up sheet ("Eclipse - NCHVC Heartland Regionals - Volunteers"), shown as a gold "Volunteer sign-up" link beside "Updated…" that opens in a new tab. Blank hides the link.
+  - `volunteerSheet`: the club's volunteer sign-up sheet ("Eclipse - NCHVC Heartland Regionals - Volunteers"), shown as an outlined gold "Volunteer sign-up" button just right of "Updated…" (that line runs full width under the title, so the button fits beside it on phones; below 360px wide it drops under it). Opens in a new tab. Blank hides the link.
 
 ## How data is loaded
 
@@ -86,7 +86,7 @@ Brackets before seeding (the 2026 Regionals tabs, a few days before the event): 
 ## Features
 
 - Pool play / Bracket play switch; division buttons filtered by Boys or girls, Age group, Division (D1–D4) and Bracket (brackets only). A filter only shows when some division on that stage has a value for it, so Regionals (no D1–D4 levels) have no Division filter; a hidden filter's saved choice is ignored. Filtering can switch to another division by itself (the only one left); Clear goes back to the division last tapped on that stage (`settings.chosen`), or the first one. Filters cascade and are shared by both stages, so they stay set when switching between Pool play and Bracket play (the Bracket choice is kept while on Pool play, where it doesn't apply).
-- Compact header: Refresh sits beside the title, above "Updated…"; the filters have no label lines (each dropdown's first option names it: "Boys & girls", "All ages", "All brackets"; a set filter is outlined in gold) and share a row with the stage switch, which gets its own row on phones. "Follow a team…" is the follow dropdown's first option.
+- Compact header: Refresh sits beside the title; "Updated…" and the Volunteer sign-up button share a full-width line under it; the filters have no label lines (each dropdown's first option names it: "Boys & girls", "All ages", "All brackets"; a set filter is outlined in gold) and share a row with the stage switch, which gets its own row on phones. "Follow a team…" is the follow dropdown's first option.
 - Pool pages: standings plus match list with set scores, "Up next", an estimated start ("Est. 4:45 PM") for "Rolling" matches (45 minutes after the previous match on the same court, or in the pool when there's no court; `MATCH_MINUTES`), the court for every match (shown as written on the sheet, e.g. "New Century FH #4"; "Sports Pavilion #3" shortens to "Court 3").
 - Bracket pages: champion banner with award, rounds side by side (stacked on phones), placement matches (3rd place, consolation) below, loser destinations, results table.
 - Follow a team (highlights it and jumps to its pool/bracket), Refresh button (no auto-refresh), highlight of changed cells since last refresh.
