@@ -147,7 +147,6 @@
   .msg.err { border-left-color: var(--bad); }
   .msg h2 { font: 700 22px "Barlow Condensed", sans-serif; margin: 0 0 4px; }
   .msg p { margin: 4px 0; }
-  footer { color: var(--muted); font-size: 14px; margin-top: 24px; line-height: 1.5; }
 
   form.setup { display: grid; gap: 16px; max-width: 700px; }
   form.setup label { display: grid; gap: 6px; font-weight: 600; }
@@ -283,7 +282,6 @@ function parsePools(rows) {
     }));
     starts.forEach((st, i) => { st.end = i + 1 < starts.length ? starts[i + 1].r : rows.length; });
   }
-  const note = (rows.flat().find(v => /^text scores/i.test(v)) || "");
 
   const pools = starts.map((st, i) => {
     const end = st.end;
@@ -367,7 +365,7 @@ function parsePools(rows) {
     pool.state = pool.complete ? "final" : pool.matches.some(m => m.played) ? "live" : "new";
     return pool;
   });
-  return { kind: "pools", pools, note };
+  return { kind: "pools", pools };
 }
 
 /* ---------------- bracket parsing ---------------- */
@@ -543,8 +541,7 @@ function parseBrackets(rows) {
     if (firstOpen) firstOpen.next = true;
     g.teams = [...new Set(g.matches.flatMap(m => [m.top, m.bottom]).filter(Boolean).map(t => t.team))];
   });
-  const note = (cells.find(x => /^text scores/i.test(x.v)) || {}).v || "";
-  return { kind: "brackets", brackets: groups.sort((a, b) => a.r - b.r), note };
+  return { kind: "brackets", brackets: groups.sort((a, b) => a.r - b.r) };
 }
 
 /* ---------------- fetching ---------------- */
@@ -1058,7 +1055,7 @@ function render() {
       <section class="card"><h3>Standings</h3>${table}<p class="note">${esc(standNote)}</p></section>
       <section class="card"><h3>Matches</h3><ol class="matches">${matches}</ol></section>
     </div>
-    ${model.note ? `<footer>${esc(model.note)}</footer>` : ""}`;
+`;
   $("main").innerHTML = html;
   flashKeys = new Set();
 }
@@ -1116,7 +1113,7 @@ function renderBrackets(s, html) {
     <div class="bracket" style="--rounds:${g.rounds.length}">${rounds}</div>
     ${extra ? `<h2 class="subhead">Placement matches</h2><div class="bracket placements">${extra}</div>` : ""}
     ${results}
-    ${model.note ? `<footer>${esc(model.note)}</footer>` : ""}`;
+`;
   $("main").innerHTML = html;
   flashKeys = new Set();
 }
