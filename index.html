@@ -858,8 +858,12 @@ const FILTERS = [
    Pool play and Bracket play. Only a stage's own filters apply to it (the Bracket
    choice is kept while on Pool play). Older saves kept a set per stage. */
 const allFilters = () => settings.sharedFilters || (settings.filters && settings.filters[settings.stage || "pools"]) || {};
+// A filter shows only when some division on the stage has a value for it (Regionals have
+// no D1-D4 divisions, so there's no Division filter); a hidden filter's saved choice is ignored
+const stageFilters = stage => FILTERS.filter(x => x.stages.includes(stage) &&
+  divisions().some(d => { if (typeOf(d) !== stage) return false; const v = tagsOf(d)[x.key]; return Array.isArray(v) ? v.length : !!v; }));
 const filtersFor = stage => {
-  const f = allFilters(), keys = FILTERS.filter(x => x.stages.includes(stage)).map(x => x.key);
+  const f = allFilters(), keys = stageFilters(stage).map(x => x.key);
   return Object.fromEntries(keys.filter(k => f[k]).map(k => [k, f[k]]));
 };
 function fits(d, f, skip) {
@@ -955,7 +959,7 @@ function renderDivisions() {
   document.querySelectorAll("#stages button").forEach(b => b.setAttribute("aria-pressed", b.dataset.stage === stage));
   const btn = d => `<button type="button" data-div="${esc(d.id)}" aria-pressed="${!setup && d.id === cur}">${esc(d.name)}</button>`;
   const f = filtersFor(stage);
-  const active = FILTERS.filter(x => x.stages.includes(stage));
+  const active = stageFilters(stage);
   $("filters").innerHTML = active.map(x => {
     const opts = filterOptions(stage, x.key);
     return `<label>${esc(x.label)}<select data-filter="${x.key}"><option value="">All</option>${
