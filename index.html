@@ -219,6 +219,12 @@
   .volform .ghost { padding: 7px 18px; font-size: 15px; }
   .volform .err { color: var(--bad); font-size: 14px; margin: 10px 0 0; }
   .volform .ok { background: #E7F4EC; color: var(--win); border-radius: 8px; padding: 10px 12px; font-weight: 600; }
+  .toast { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 460px; margin: 0 auto; z-index: 11;
+    display: flex; gap: 10px; align-items: center; background: var(--dark); color: #fff; border-radius: 12px; padding: 12px 12px 12px 16px;
+    box-shadow: 0 10px 30px rgba(20, 20, 22, .35); font-size: 15px; line-height: 1.35; }
+  .toast span { flex: 1; }
+  .toast .refresh { padding: 6px 12px; font-size: 14px; }
+  .toast .ghost { color: #fff; border-color: rgba(255,255,255,.3); padding: 4px 10px; font-size: 14px; }
   /* Add to Home Screen: a card at the bottom on the first visit from a phone, and a button at the end of the page */
   [hidden] { display: none !important; }
   .pagefoot { text-align: center; padding: 0 16px calc(28px + env(safe-area-inset-bottom, 0px)); margin-top: -12px; }
@@ -270,6 +276,7 @@
 <main id="main"></main>
 <footer class="pagefoot"><button class="ghost" id="installBtn" type="button" hidden>Add to Home Screen</button></footer>
 <dialog class="volform" id="volForm" aria-labelledby="volTitle"></dialog>
+<div class="toast" id="toast" role="status" hidden></div>
 <div class="install" id="install" role="dialog" aria-labelledby="installTitle" hidden>
   <img src="icons/apple-touch-icon.png" alt="" width="52" height="52">
   <div>
@@ -1368,6 +1375,13 @@ async function loadVolunteers(force) {
         cells: Object.fromEntries(vol.roles.map(role => [role, (r[head.indexOf(role)] || "").trim()]))
       }));
       vol.at = Date.now();
+      // Sign-ups still being saved stay on show (and a new game's rows stay until the sheet has them)
+      volInflight.forEach(f => {
+        let row = vol.rows.find(x => x.key === f.key && x.team === f.team);
+        if (!row && f.rows) f.rows.forEach(n => { if (!vol.rows.some(x => x.key === volNorm(n.match) && x.team === n.team)) vol.rows.push({ ...volRowOf(n), unsaved: true }); });
+        row = vol.rows.find(x => x.key === f.key && x.team === f.team);
+        if (row && !row.cells[f.role]) { row.cells[f.role] = f.name; row.saving = { ...(row.saving || {}), [f.role]: true }; }
+      });
     }
   } catch (e) { /* keep what we had; the buttons just don't show */ }
   vol.busy = false;
@@ -1388,13 +1402,90 @@ function volButton(game) {
   return `<div class="volrow"><button type="button" class="volbtn${open ? "" : " full"}" data-vol="${esc(key)}">${open ? `Volunteer · ${open} open` : "Volunteers ✓ all filled"}</button></div>`;
 }
 let volName = ""; try { volName = localStorage.getItem(KEY + "-volname") || ""; } catch (e) {}
-function openVolForm(key, done) {
-  const rows = volRowsFor(key); if (!rows.length) return;
+// Apps Script takes a few seconds to wake after a quiet spell, so the form wakes it when it opens
+let volWarmAt = 0;
+function warmVolScript() {
+  if (!VOLUNTEER_SCRIPT || Date.now() - volWarmAt < 4 * 60000) return;
+  volWarmAt = Date.now();
+  fetch(VOLUNTEER_SCRIPT, { mode: "no-cors", cache: "no-store" }).catch(() => {});
+}
+async function volPost(body, keepalive) {
+  // text/plain keeps it a simple request, which Apps Script answers without a CORS preflight;
+  // keepalive lets a sign-up finish even if the page is closed right after
+  const send = k => fetch(VOLUNTEER_SCRIPT, { method: "POST", body: JSON.stringify(body), keepalive: k });
+  let res;
+  try { res = await send(!!keepalive); } catch (e) { if (!keepalive) throw e; res = await send(false); }
+  return res.json();
+}
+const volRowOf = r => ({ ...r, key: volNorm(r.match), cells: { ...r.cells } });
+const volStatus = {};   // key -> the thank-you / saved line shown at the top of that game's form
+const volInflight = [];   // sign-ups still being saved, put back after the sheet is re-read
+async function volSave(key, r, role, name, add) {
+  const ask = { match: r.match, team: r.team, role, name };
+  const flight = { key, team: r.team, role, name, rows: add };
+  volInflight.push(flight);
+  const done = ok => {
+    volInflight.splice(volInflight.indexOf(flight), 1);
+    // the sheet may have been re-read meanwhile: settle the row that's there now
+    const now = volRowsFor(key).find(x => x.team === r.team);
+    if (now && now !== r) { now.cells[role] = r.cells[role]; if (now.saving) delete now.saving[role]; }
+    delete r.saving[role]; if (!ok) delete volStatus[key]; render(); refreshVolForm(key);
+  };
+  try {
+    // One request adds the game's rows (if they're missing) and signs up
+    let out = await volPost(add ? { ...ask, add } : ask, true);
+    if (add && out.error === "nogame") {
+      // A script from before combined sign-ups: add the rows first, then sign up
+      const added = await volPost({ action: "add", rows: add }, true);
+      if (!added.ok) throw new Error(added.error || "add");
+      out = await volPost(ask, true);
+    }
+    if (out.ok || out.error === "taken" || out.error === "notneeded") volRowsFor(key).forEach(x => { delete x.unsaved; });
+    // "taken" by this same name means an earlier try got through
+    if (out.ok || (out.error === "taken" && out.value === name)) {
+      volStatus[key] = `Thank you, ${name}! You're the ${role} for ${r.team}. Saved ✓`;
+      return done(true);
+    }
+    if (out.error === "taken" || out.error === "notneeded") {
+      r.cells[role] = out.value || "N/A"; done(false);
+      return volTell(key, `Sorry, ${out.value && out.value !== "N/A" ? out.value + " signed up" : "someone signed up"} as ${role} for ${r.team} just before you. Pick another spot.`, "Pick another spot");
+    }
+    throw new Error(out.error || "unknown");
+  } catch (e) {
+    r.cells[role] = ""; done(false);
+    volTell(key, `Your sign-up as ${role} for ${r.team} didn't save. Try again.`, "Try again");
+  }
+}
+// A failed save: said in the game's form when it's open (a note under it couldn't be tapped), else in a note
+function volTell(key, text, action) {
+  const dlg = $("volForm");
+  if (dlg.open && dlg.dataset.key === key) { const e = $("volErr"); if (e) { e.textContent = text; e.hidden = false; } return; }
+  toast(text.replace(/ (Pick another spot|Try again)\.$/, ""), action, () => openVolForm(key));
+}
+// Redraws a game's form if it's still open
+function refreshVolForm(key) { const dlg = $("volForm"); if (dlg.open && dlg.dataset.key === key) openVolForm(key); }
+// A note at the bottom of the page, with one action
+function toast(text, action, fn) {
+  const t = $("toast");
+  t.innerHTML = `<span>${esc(text)}</span>${action ? `<button type="button" class="refresh" id="toastGo">${esc(action)}</button>` : ""}<button type="button" class="ghost" id="toastX" aria-label="Dismiss">✕</button>`;
+  t.hidden = false;
+  if (action) $("toastGo").addEventListener("click", () => { t.hidden = true; fn(); });
+  $("toastX").addEventListener("click", () => { t.hidden = true; });
+}
+function openVolForm(key) {
+  const done = volStatus[key];
+  // A game that isn't in the sheet yet shows the rows it would get; its row is added with the sign-up
+  const game = volGames.get(key), here = volRowsFor(key);
+  const pending = game && game.newRows.length && (!here.length || here.every(x => x.unsaved))
+    ? (here.length ? here : game.newRows.map(r => ({ ...volRowOf(r), unsaved: true }))) : null;
+  const rows = pending || volRowsFor(key); if (!rows.length) return;
+  warmVolScript();
   const r0 = rows[0], dlg = $("volForm");
+  dlg.dataset.key = key;
   const spot = (r, role, i) => {
     const v = r.cells[role];
     if (isNA(v)) return "";
-    return v ? `<div class="spot taken"><span>${esc(role)}</span><span class="who">${esc(v)}</span></div>`
+    return v ? `<div class="spot taken"><span>${esc(role)}</span><span class="who">${esc(v)}${r.saving && r.saving[role] ? " · saving…" : ""}</span></div>`
       : `<label class="spot"><input type="radio" name="spot" value="${i}|${esc(role)}" required> <span>${esc(role)}</span></label>`;
   };
   const open = volOpen(rows);
@@ -1422,47 +1513,21 @@ function openVolForm(key, done) {
     if (!name) return err("Add your name.");
     const [i, role] = [+pick.value.split("|")[0], pick.value.slice(pick.value.indexOf("|") + 1)];
     const r = rows[i];
-    $("volSubmit").disabled = true; $("volSubmit").textContent = "Signing up…";
-    try {
-      // text/plain keeps it a simple request, which Apps Script answers without a CORS preflight
-      const res = await fetch(VOLUNTEER_SCRIPT, { method: "POST", body: JSON.stringify({ match: r.match, team: r.team, role, name }) });
-      const out = await res.json();
-      volName = name; try { localStorage.setItem(KEY + "-volname", name); } catch (e) {}
-      if (out.ok) { r.cells[role] = name; render(); openVolForm(key, `Thank you, ${name}! You're the ${role} for ${r.team}.`); return; }
-      if (out.error === "taken" || out.error === "notneeded") { r.cells[role] = out.value || "N/A"; render(); openVolForm(key); return err("Someone just took that spot. Pick another."); }
-      err("Couldn't sign you up (" + (out.error || "unknown") + "). Try again, or use the volunteer sheet.");
-    } catch (e2) { err("Couldn't reach the sign-up sheet. Check your connection and try again."); }
-    $("volSubmit").disabled = false; $("volSubmit").textContent = "Sign up";
+    // Shown as signed up straight away; the sheet is written in the background (Apps Script can
+    // take 10-15 s to start), and only a failure comes back, as a note at the bottom of the page
+    volName = name; try { localStorage.setItem(KEY + "-volname", name); } catch (e) {}
+    if (pending) pending.forEach(x => { if (!vol.rows.some(y => y.key === x.key && y.team === x.team)) vol.rows.push(x); });
+    r.cells[role] = name; r.saving = { ...(r.saving || {}), [role]: true };
+    volStatus[key] = `Thank you, ${name}! You're the ${role} for ${r.team}. Saving it to the volunteer sheet; you can close this.`;
+    render(); openVolForm(key);
+    volSave(key, r, role, name, pending ? game.newRows : null);
+    return;
   });
   if (!dlg.open) dlg.showModal();
 }
-// Adds a game's rows to the sheet (the script skips any that are already there), then opens its form
-async function volAdd(game, btn) {
-  btn.disabled = true; btn.textContent = "Opening…";
-  try {
-    const res = await fetch(VOLUNTEER_SCRIPT, { method: "POST", body: JSON.stringify({ action: "add", rows: game.newRows }) });
-    const out = await res.json();
-    if (!out.ok) throw new Error(out.error || "unknown");
-    // The script answers with the rows as they are in the sheet now
-    (out.rows || game.newRows).forEach(r => {
-      if (!vol.rows.some(x => x.key === volNorm(r.match) && x.team === r.team))
-        vol.rows.push({ ...r, key: volNorm(r.match), cells: { ...r.cells } });
-    });
-    render(); openVolForm(game.key);
-  } catch (e) {
-    render();
-    const dlg = $("volForm");
-    dlg.innerHTML = `<form method="dialog"><h2 id="volTitle">Couldn't open sign-up</h2>
-      <p class="sub">${/name|role/.test(e.message) ? "The volunteer sheet's script needs updating to add new games (see volunteer-script.gs)." : "Couldn't reach the volunteer sheet. Check your connection and try again."}</p>
-      <div class="actions"><button type="submit" class="ghost">Close</button></div></form>`;
-    if (!dlg.open) dlg.showModal();
-  }
-}
 document.addEventListener("click", e => {
   const b = e.target.closest("button[data-vol]"); if (!b) return;
-  const key = b.dataset.vol, game = volGames.get(key);
-  if (!volRowsFor(key).length && game && game.newRows.length) return volAdd(game, b);
-  openVolForm(key); loadVolunteers(false);
+  openVolForm(b.dataset.vol); loadVolunteers(false);
 });
 
 /* ---------------- rendering ---------------- */

@@ -14,7 +14,8 @@
  * { action: "add", rows: [{ day, time, court, team, side, opp, match, cells: { job: "" or "N/A" } }] }.
  * Each row is appended unless the sheet already has that Match and Eclipse Team; job cells can
  * only be blank or "N/A", so adding a row never signs anyone up. The answer lists the rows as
- * they are in the sheet afterwards.
+ * they are in the sheet afterwards. A sign-up can carry the same rows as `add` (one request
+ * instead of two): they're appended first when the game isn't in the sheet.
  *
  * After changing this code: Deploy > Manage deployments > edit (pencil) > Version: New version >
  * Deploy. That keeps the same web app URL.
@@ -35,11 +36,11 @@ function clean(v, max) {
   return /^[=+\-@]/.test(s) ? "'" + s : s;
 }
 
-// Appends the game's rows that aren't in the sheet yet
-function addRows(sheet, data, h, head, rows) {
+// Appends the game's rows that aren't in the sheet yet; null when the request is malformed
+function appendRows(sheet, data, h, head, rows) {
   var col = function (name) { return head.indexOf(name); };
   var mc = col("match"), tc = col("eclipse team") >= 0 ? col("eclipse team") : col("team");
-  if (!Array.isArray(rows) || !rows.length || rows.length > 2) return reply({ ok: false, error: "rows" });
+  if (!Array.isArray(rows) || !rows.length || rows.length > 2) return null;
   var out = [];
   rows.forEach(function (r) {
     if (!r || !clean(r.match) || !clean(r.team)) return;
@@ -73,7 +74,12 @@ function addRows(sheet, data, h, head, rows) {
       team: String(found[tc]).trim(), side: String(found[col("home/away")] || ""), opp: String(found[col("opponent")] || ""),
       match: String(found[mc]).trim(), cells: cellsOut });
   });
-  return reply({ ok: true, rows: out });
+  return out;
+}
+
+function addRows(sheet, data, h, head, rows) {
+  var out = appendRows(sheet, data, h, head, rows);
+  return reply(out ? { ok: true, rows: out } : { ok: false, error: "rows" });
 }
 
 function doPost(e) {
@@ -108,16 +114,23 @@ function doPost(e) {
     var rc = head.indexOf(role);
     if (rc < 0 || INFO.indexOf(role) >= 0) return reply({ ok: false, error: "role" });
 
-    for (var r = h + 1; r < data.length; r++) {
-      if (norm(data[r][mc]) !== norm(req.match)) continue;
-      if (tc >= 0 && String(data[r][tc]).trim() !== String(req.team || "").trim()) continue;
-      var cur = String(data[r][rc]).trim();
-      if (/^n\/?a$/i.test(cur)) return reply({ ok: false, error: "notneeded", value: "N/A" });
-      if (cur) return reply({ ok: false, error: "taken", value: cur });
-      sheet.getRange(r + 1, rc + 1).setValue(name);
-      return reply({ ok: true });
-    }
-    return reply({ ok: false, error: "nogame" });
+    var find = function () {
+      for (var r = h + 1; r < data.length; r++) {
+        if (norm(data[r][mc]) !== norm(req.match)) continue;
+        if (tc >= 0 && String(data[r][tc]).trim() !== String(req.team || "").trim()) continue;
+        return r;
+      }
+      return -1;
+    };
+    var r = find();
+    // A game not in the sheet yet: add its rows first (appended rows land at the end of data)
+    if (r < 0 && req.add) { appendRows(sheet, data, h, head, req.add); r = find(); }
+    if (r < 0) return reply({ ok: false, error: "nogame" });
+    var cur = String(data[r][rc]).trim();
+    if (/^n\/?a$/i.test(cur)) return reply({ ok: false, error: "notneeded", value: "N/A" });
+    if (cur) return reply({ ok: false, error: "taken", value: cur });
+    sheet.getRange(r + 1, rc + 1).setValue(name);
+    return reply({ ok: true });
   } catch (err) {
     return reply({ ok: false, error: "script" });
   } finally {
