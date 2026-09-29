@@ -47,7 +47,6 @@
   .divs { max-width: 1100px; margin: 12px auto 0; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
   .divs button { font: 600 15px Barlow, sans-serif; white-space: nowrap; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); background: transparent; color: #fff; cursor: pointer; }
   .divs button[aria-pressed="true"] { background: #fff; color: var(--navy); border-color: #fff; }
-  .divs .add { border-style: dashed; color: #B8C3D9; }
   .custom-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   .custom-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
   /* Filters and the stage switch share one compact row; each dropdown says what it filters
@@ -207,10 +206,10 @@ const CONFIG_SHEET = VIEWER_CONFIG.divisionsSheet || "";
 const API_KEY = VIEWER_CONFIG.sheetsApiKey || "";
 const INDEX_SHEET = VIEWER_CONFIG.indexSheet || "https://docs.google.com/spreadsheets/d/1BMqNRKu8dxVG3EzBou6Kv1jYtITo_4baXkJebuHOcbI/edit?gid=760812890#gid=760812890";
 
-/* The division list, saved from the NCHVC bracket index (now the 2026 Regionals one) (tabs checked
-   readable by the parsers). Visitors use this list, so they never call the Sheets
-   API. "Update division list" on the Add a division page rebuilds it through the
-   API in that browser only; to update it for everyone, regenerate this block.
+/* The last division discovery from the NCHVC bracket index (tabs checked readable by the
+   parsers). The setup page (#setup) builds the divisions sheet's rows from it, and it's
+   the list when the sheet can't be read. "Build rows from the NCHVC index" rebuilds it
+   through the Sheets API in that browser; to change it for everyone, regenerate this block.
    type is "pools" for pool play tabs or "brackets" for bracket tabs. */
 const SAVED_LIST = {
   at: 1790644111502, // 2026-09-29, 2026 Heartland Regionals index
@@ -599,7 +598,11 @@ function loadViaScript(parts) {
 /* ---------------- state ---------------- */
 let settings = load();                 // { division, follow, custom: [], stage, sharedFilters, chosen }
 const store = {};                      // division id -> cached results
-let flashKeys = new Set(), setup = false;
+/* The setup page (division list rows, "Build rows from the NCHVC index", Add a division)
+   has no button; it opens at the page address plus #setup. */
+let flashKeys = new Set(), setup = location.hash === "#setup";
+window.addEventListener("hashchange", () => { setup = location.hash === "#setup"; render(); });
+const leaveSetup = () => { setup = false; if (location.hash === "#setup") history.replaceState(null, "", location.pathname + location.search); };
 const $ = id => document.getElementById(id);
 
 function load() { try { return { custom: [], ...(JSON.parse(localStorage.getItem(KEY)) || {}) }; } catch (e) { return { custom: [] }; } }
@@ -973,8 +976,7 @@ function renderDivisions() {
       opts.map(v => `<option ${v === f[x.key] ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></label>`;
   }).join("") + (active.some(x => f[x.key]) ? `<button type="button" class="linkish" id="clearFilters">Clear</button>` : "");
   const list = visibleDivisions(stage);
-  $("divs").innerHTML = list.map(btn).join("") +
-    `<button type="button" class="add" id="addDiv" aria-pressed="${setup}">Add a division</button>`;
+  $("divs").innerHTML = list.map(btn).join("");
 }
 
 const notices = () => { baseDivisions(); return [configWarning, mergeWarning].filter(Boolean).map(w => `<div class="msg err"><p>${esc(w)}</p></div>`).join(""); };
@@ -1175,9 +1177,9 @@ function renderSetup() {
     if (!linkParts(f.get("url"))) { alert("That doesn't look like a Google Sheets link."); return; }
     const div = { id: "c" + Date.now(), type: f.get("type") || "pools", name: f.get("name").trim(), url: f.get("url").trim() };
     settings.custom = [...custom, div]; settings.division = div.id; settings.stage = div.type; save();
-    setup = false; render(); refresh();
+    leaveSetup(); render(); refresh();
   });
-  $("cancelBtn").addEventListener("click", () => { setup = false; render(); });
+  $("cancelBtn").addEventListener("click", () => { leaveSetup(); render(); });
   $("main").querySelectorAll("[data-remove]").forEach(b => b.addEventListener("click", () => {
     settings.custom = custom.filter(c => c.id !== b.dataset.remove);
     if (!divisions().some(d => d.id === settings.division)) settings.division = DIVISIONS[0].id;
@@ -1194,7 +1196,7 @@ $("stages").addEventListener("click", e => {
   const remembered = (settings.lastByStage || {})[settings.stage];
   const options = visibleDivisions(settings.stage);
   settings.division = (options.find(d => d.id === remembered) || options[0] || {}).id;
-  setup = false; flashKeys = new Set(); save(); render();
+  leaveSetup(); flashKeys = new Set(); save(); render();
   const s = slot(current().id);
   if (!s.lastUpdated || Date.now() - s.lastUpdated > 30000) refresh();
 });
@@ -1222,9 +1224,8 @@ $("filters").addEventListener("change", e => {
 });
 $("filters").addEventListener("click", e => { if (e.target.closest("#clearFilters")) clearFilters(); });
 $("divs").addEventListener("click", e => {
-  if (e.target.closest("#addDiv")) { setup = true; render(); return; }
   const b = e.target.closest("button[data-div]"); if (!b) return;
-  setup = false; settings.division = b.dataset.div; flashKeys = new Set();
+  leaveSetup(); settings.division = b.dataset.div; flashKeys = new Set();
   settings.chosen = { ...(settings.chosen || {}), [currentStage()]: b.dataset.div }; save();
   render();
   const s = slot(settings.division);

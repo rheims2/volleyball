@@ -9,6 +9,6 @@ window.VIEWER_CONFIG = {
   sheetsApiKey: "AIzaSyBO9bvtoXLMAua2DZyNit1WphNDnh9eGwE",
 
   // The NCHVC bracket index the division list is built from (now the 2026 Regionals index).
-  // Change it when a new index is published, then rebuild the rows on the Add a division page.
+  // Change it when a new index is published, then rebuild the rows on the setup page (the viewer's address plus #setup).
   indexSheet: "https://docs.google.com/spreadsheets/d/1BMqNRKu8dxVG3EzBou6Kv1jYtITo_4baXkJebuHOcbI/edit?gid=760812890#gid=760812890"
 };
