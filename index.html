@@ -33,6 +33,7 @@
   .status-row { display: flex; flex-wrap: wrap; gap: 2px 14px; align-items: center; margin-top: 5px; }
   .status { color: #B8C3D9; font-size: 14px; }
   .status .stale { color: var(--gold); }
+  .volunteer { color: var(--gold); font-size: 14px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
   .refresh {
     font: 700 15px Barlow, sans-serif; background: var(--gold); color: var(--navy); border: 0; border-radius: 999px;
     padding: 8px 16px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; flex: none;
@@ -167,6 +168,7 @@
       <h1 id="title">Pool results</h1>
       <div class="status-row">
         <span class="status" id="status" aria-live="polite">Loading results…</span>
+        <a class="volunteer" id="volunteerLink" href="#" target="_blank" rel="noopener" hidden>Volunteer sign-up</a>
       </div>
     </div>
     <button class="refresh" id="refreshBtn" type="button"><span class="spin" aria-hidden="true"></span><span id="refreshLabel">Refresh</span></button>
@@ -203,6 +205,8 @@ const CONFIG_SHEET = VIEWER_CONFIG.divisionsSheet || "";
    Google Sheets API (the public feeds don't include link addresses). The API key
    lives in config.js as sheetsApiKey. Scores never use the API. */
 const API_KEY = VIEWER_CONFIG.sheetsApiKey || "";
+// The club's volunteer sign-up sheet (config.js volunteerSheet), linked in the header
+const VOLUNTEER_SHEET = VIEWER_CONFIG.volunteerSheet || "";
 const INDEX_SHEET = VIEWER_CONFIG.indexSheet || "https://docs.google.com/spreadsheets/d/1BMqNRKu8dxVG3EzBou6Kv1jYtITo_4baXkJebuHOcbI/edit?gid=760812890#gid=760812890";
 
 /* The last division discovery from the NCHVC bracket index (tabs checked readable by the
@@ -1259,6 +1263,7 @@ $("followSel").addEventListener("change", e => {
   render();
 });
 setInterval(updateStatus, 30000);
+if (VOLUNTEER_SHEET) { $("volunteerLink").href = VOLUNTEER_SHEET; $("volunteerLink").hidden = false; }
 if ("auto" in settings) { delete settings.auto; save(); }   // auto-refresh was removed; forget the old setting
 render();
 (async () => { await loadConfig(); render(); refresh(); })();
