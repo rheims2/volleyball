@@ -26,39 +26,48 @@
   body { font-family: Barlow, "Segoe UI", system-ui, sans-serif; background: var(--paper); color: var(--ink); font-size: 16px; }
   .cond { font-family: "Barlow Condensed", "Arial Narrow", sans-serif; }
 
-  header { background: var(--navy); color: #fff; padding: calc(18px + env(safe-area-inset-top, 0px)) clamp(14px, 4vw, 36px) 16px; }
-  .top { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-end; justify-content: space-between; max-width: 1100px; margin: 0 auto; }
-  h1 { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: clamp(30px, 7vw, 48px); line-height: .95; margin: 0; }
-  .status { color: #B8C3D9; font-size: 15px; margin-top: 8px; }
+  header { background: var(--navy); color: #fff; padding: calc(12px + env(safe-area-inset-top, 0px)) clamp(14px, 4vw, 36px) 12px; }
+  .top { display: flex; gap: 12px 20px; align-items: flex-start; justify-content: space-between; max-width: 1100px; margin: 0 auto; }
+  .titles { min-width: 0; }
+  h1 { font-family: "Barlow Condensed", sans-serif; font-weight: 700; font-size: clamp(26px, 6vw, 40px); line-height: 1; margin: 0; }
+  .status-row { display: flex; flex-wrap: wrap; gap: 2px 14px; align-items: center; margin-top: 5px; }
+  .status { color: #B8C3D9; font-size: 14px; }
   .status .stale { color: var(--gold); }
-  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
   .refresh {
-    font: 700 17px Barlow, sans-serif; background: var(--gold); color: var(--navy); border: 0; border-radius: 999px;
-    padding: 11px 22px; cursor: pointer; display: inline-flex; gap: 10px; align-items: center;
+    font: 700 15px Barlow, sans-serif; background: var(--gold); color: var(--navy); border: 0; border-radius: 999px;
+    padding: 8px 16px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; flex: none;
   }
   .refresh[disabled] { opacity: .75; cursor: progress; }
   .spin { width: 14px; height: 14px; border: 2px solid var(--navy); border-right-color: transparent; border-radius: 50%; display: none; }
   .loading .spin { display: inline-block; animation: turn .8s linear infinite; }
   @keyframes turn { to { transform: rotate(360deg); } }
-  .auto { font-size: 15px; color: #D5DCEA; display: flex; gap: 6px; align-items: center; cursor: pointer; }
-  .auto input { accent-color: var(--gold); width: 18px; height: 18px; }
+  .auto { font-size: 14px; color: #D5DCEA; display: flex; gap: 5px; align-items: center; cursor: pointer; }
+  .auto input { accent-color: var(--gold); width: 15px; height: 15px; margin: 0; }
   .linkish { background: none; border: 0; color: #B8C3D9; font: 500 15px Barlow, sans-serif; text-decoration: underline; cursor: pointer; padding: 4px; }
 
-  .event { color: #B8C3D9; font-size: 15px; margin-bottom: 4px; }
-  .divs { max-width: 1100px; margin: 16px auto 0; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
-  .divs button { font: 600 16px Barlow, sans-serif; white-space: nowrap; padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); background: transparent; color: #fff; cursor: pointer; }
+  .event { color: #B8C3D9; font-size: 13px; margin-bottom: 2px; }
+  .divs { max-width: 1100px; margin: 12px auto 0; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+  .divs button { font: 600 15px Barlow, sans-serif; white-space: nowrap; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); background: transparent; color: #fff; cursor: pointer; }
   .divs button[aria-pressed="true"] { background: #fff; color: var(--navy); border-color: #fff; }
   .divs .add { border-style: dashed; color: #B8C3D9; }
   .custom-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   .custom-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
-  .filterbar { max-width: 1100px; margin: 18px auto 0; display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: flex-end; }
-  .stages { display: inline-flex; background: rgba(255,255,255,.1); border-radius: 12px; padding: 4px; gap: 4px; }
-  .stages button { font: 700 20px "Barlow Condensed", sans-serif; padding: 8px 20px; border-radius: 9px; border: 0; background: transparent; color: #D5DCEA; cursor: pointer; }
+  /* Filters and the stage switch share one compact row; each dropdown says what it filters
+     ("All ages"), so there are no label lines. On phones the switch gets its own row above. */
+  .filterbar { max-width: 1100px; margin: 12px auto 0; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
+  .stages { display: inline-flex; background: rgba(255,255,255,.1); border-radius: 10px; padding: 3px; gap: 3px; }
+  .stages button { font: 700 17px "Barlow Condensed", sans-serif; padding: 5px 14px; border-radius: 8px; border: 0; background: transparent; color: #D5DCEA; cursor: pointer; }
   .stages button[aria-pressed="true"] { background: var(--gold); color: var(--navy); }
-  .filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
-  .filters label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #B8C3D9; }
-  .filters select { font: 500 15px Barlow, sans-serif; padding: 8px 10px; border-radius: 8px; border: 0; min-width: 118px; background: #fff; color: var(--ink); }
-  .filters .linkish { padding: 8px 4px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .filters label { display: flex; }
+  .filters select { font: 500 14px Barlow, sans-serif; padding: 7px 8px; border-radius: 8px; border: 0; background: #fff; color: var(--ink); max-width: 100%; }
+  .filters select.set { outline: 2px solid var(--gold); outline-offset: -2px; font-weight: 700; }
+  .filters .linkish { padding: 4px; font-size: 14px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 600px) {
+    .stages { order: -1; width: 100%; } .stages button { flex: 1; }
+    .filters { width: 100%; } .filters label { flex: 1 1 0; min-width: 96px; } .filters select { width: 100%; }
+  }
   .divgroup { display: flex; gap: 8px; align-items: center; }
   .divgroup + .divgroup { margin-left: 10px; padding-left: 14px; border-left: 1px solid rgba(255,255,255,.2); }
   .divlabel { color: #B8C3D9; font-size: 14px; white-space: nowrap; }
@@ -81,14 +90,16 @@
   .bar-inner { max-width: 1100px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; }
   .pools { display: flex; gap: 6px; overflow-x: auto; }
   .pools button {
-    font: 700 20px "Barlow Condensed", sans-serif; min-width: 46px; height: 44px; padding: 0 12px;
+    font: 700 18px "Barlow Condensed", sans-serif; min-width: 40px; height: 36px; padding: 0 10px;
     border-radius: 10px; border: 2px solid transparent; background: rgba(255,255,255,.08); color: #fff; cursor: pointer;
   }
   .pools button[aria-pressed="true"] { background: #fff; color: var(--navy); }
   .pools button.done::after { content: "✓"; font-size: 14px; margin-left: 4px; color: var(--win); }
   .pools button[aria-pressed="false"].done::after { color: #8FD3B0; }
   .follow { display: flex; gap: 8px; align-items: center; color: #D5DCEA; font-size: 15px; }
-  .follow select { font: 500 15px Barlow, sans-serif; padding: 8px 10px; border-radius: 8px; border: 0; max-width: 230px; background: #fff; color: var(--ink); }
+  .follow select { font: 500 14px Barlow, sans-serif; padding: 7px 8px; border-radius: 8px; border: 0; max-width: 200px; background: #fff; color: var(--ink); }
+  /* Pool or class buttons and the follow dropdown stay on one line; the dropdown shrinks first */
+  @media (max-width: 600px) { .bar-inner { flex-wrap: nowrap; } .follow { flex: 0 1 150px; min-width: 110px; } .follow select { width: 100%; } }
 
   main { max-width: 1100px; margin: 0 auto; padding: 22px clamp(14px, 4vw, 36px) calc(40px + env(safe-area-inset-bottom, 0px)); }
   .pool-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 16px; }
@@ -155,15 +166,15 @@
 <body>
 <header>
   <div class="top">
-    <div>
+    <div class="titles">
       <div class="event" id="eventLine">NCHVC pool play</div>
       <h1 id="title">Pool results</h1>
-      <div class="status" id="status" aria-live="polite">Loading results…</div>
+      <div class="status-row">
+        <span class="status" id="status" aria-live="polite">Loading results…</span>
+        <label class="auto" title="Refresh the results every minute"><input type="checkbox" id="autoChk"> Auto-refresh</label>
+      </div>
     </div>
-    <div class="controls">
-      <button class="refresh" id="refreshBtn" type="button"><span class="spin" aria-hidden="true"></span><span id="refreshLabel">Refresh results</span></button>
-      <label class="auto"><input type="checkbox" id="autoChk"> Auto-refresh every minute</label>
-    </div>
+    <button class="refresh" id="refreshBtn" type="button"><span class="spin" aria-hidden="true"></span><span id="refreshLabel">Refresh</span></button>
   </div>
   <div class="filterbar">
     <div class="filters" id="filters" aria-label="Filters"></div>
@@ -177,8 +188,8 @@
 <div class="bar" id="bar" hidden>
   <div class="bar-inner">
     <div class="pools" id="pools" aria-label="Pools"></div>
-    <label class="follow">Follow a team
-      <select id="followSel"><option value="">None</option></select>
+    <label class="follow"><span class="sr">Follow a team</span>
+      <select id="followSel" title="Follow a team"><option value="">Follow a team…</option></select>
     </label>
   </div>
 </div>
@@ -849,10 +860,10 @@ function tagsOf(d) {
   return (d._tags = { gender, age, level: levels, bracket });
 }
 const FILTERS = [
-  { key: "gender", label: "Boys or girls", stages: ["pools", "brackets"] },
-  { key: "age", label: "Age group", stages: ["pools", "brackets"] },
-  { key: "level", label: "Division", stages: ["pools", "brackets"] },
-  { key: "bracket", label: "Bracket", stages: ["brackets"] }
+  { key: "gender", label: "Boys or girls", any: "Boys & girls", stages: ["pools", "brackets"] },
+  { key: "age", label: "Age group", any: "All ages", stages: ["pools", "brackets"] },
+  { key: "level", label: "Division", any: "All divisions", stages: ["pools", "brackets"] },
+  { key: "bracket", label: "Bracket", any: "All brackets", stages: ["brackets"] }
 ];
 /* One set of filter choices for both stages, so they stay put when switching between
    Pool play and Bracket play. Only a stage's own filters apply to it (the Bracket
@@ -937,7 +948,7 @@ async function refresh() {
 
 function busy(on) {
   $("refreshBtn").disabled = on; $("refreshBtn").classList.toggle("loading", on);
-  $("refreshLabel").textContent = on ? "Refreshing…" : "Refresh results";
+  $("refreshLabel").textContent = on ? "Refreshing…" : "Refresh";
 }
 
 function updateStatus() {
@@ -962,9 +973,9 @@ function renderDivisions() {
   const active = stageFilters(stage);
   $("filters").innerHTML = active.map(x => {
     const opts = filterOptions(stage, x.key);
-    return `<label>${esc(x.label)}<select data-filter="${x.key}"><option value="">All</option>${
+    return `<label><span class="sr">${esc(x.label)}</span><select data-filter="${x.key}" class="${f[x.key] ? "set" : ""}" title="${esc(x.label)}"><option value="">${esc(x.any)}</option>${
       opts.map(v => `<option ${v === f[x.key] ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></label>`;
-  }).join("") + (active.some(x => f[x.key]) ? `<button type="button" class="linkish" id="clearFilters">Clear filters</button>` : "");
+  }).join("") + (active.some(x => f[x.key]) ? `<button type="button" class="linkish" id="clearFilters">Clear</button>` : "");
   const list = visibleDivisions(stage);
   $("divs").innerHTML = list.map(btn).join("") +
     `<button type="button" class="add" id="addDiv" aria-pressed="${setup}">Add a division</button>`;
@@ -1005,7 +1016,7 @@ function render() {
   $("pools").innerHTML = model.pools.map(p =>
     `<button type="button" data-pool="${esc(p.letter)}" aria-pressed="${p.letter === s.active}" class="${p.complete ? "done" : ""}" aria-label="${esc(p.name)}${p.complete ? ", final" : ""}">${esc(p.letter)}</button>`).join("");
   const allTeams = model.pools.flatMap(p => p.teams.map(t => t.team)).sort((a, b) => a.localeCompare(b));
-  $("followSel").innerHTML = `<option value="">None</option>` + allTeams.map(t => `<option ${t === settings.follow ? "selected" : ""}>${esc(t)}</option>`).join("");
+  $("followSel").innerHTML = `<option value="">Follow a team…</option>` + allTeams.map(t => `<option ${t === settings.follow ? "selected" : ""}>${esc(t)}</option>`).join("");
 
   const p = model.pools.find(x => x.letter === s.active) || model.pools[0];
   const fl = k => flashKeys.has(`${p.letter}|${k}`) ? " flash" : "";
@@ -1060,7 +1071,7 @@ function renderBrackets(s, html) {
   $("pools").innerHTML = list.map(g =>
     `<button type="button" data-pool="${esc(g.key)}" aria-pressed="${g.key === s.active}" class="${g.state === "final" ? "done" : ""}" aria-label="${esc(g.title)}${g.state === "final" ? ", final" : ""}">${esc(g.label)}</button>`).join("");
   const allTeams = [...new Set(list.flatMap(g => g.teams))].sort((a, b) => a.localeCompare(b));
-  $("followSel").innerHTML = `<option value="">None</option>` + allTeams.map(t => `<option ${t === settings.follow ? "selected" : ""}>${esc(t)}</option>`).join("");
+  $("followSel").innerHTML = `<option value="">Follow a team…</option>` + allTeams.map(t => `<option ${t === settings.follow ? "selected" : ""}>${esc(t)}</option>`).join("");
 
   const g = list.find(x => x.key === s.active) || list[0];
   const mine = t => settings.follow && t === settings.follow;

@@ -85,6 +85,7 @@ Brackets before seeding (the 2026 Regionals tabs, a few days before the event): 
 ## Features
 
 - Pool play / Bracket play switch; division buttons filtered by Boys or girls, Age group, Division (D1–D4) and Bracket (brackets only). A filter only shows when some division on that stage has a value for it, so Regionals (no D1–D4 levels) have no Division filter; a hidden filter's saved choice is ignored. Filters cascade and are shared by both stages, so they stay set when switching between Pool play and Bracket play (the Bracket choice is kept while on Pool play, where it doesn't apply).
+- Compact header: Refresh sits beside the title and Auto-refresh beside "Updated…"; the filters have no label lines (each dropdown's first option names it: "Boys & girls", "All ages", "All brackets"; a set filter is outlined in gold) and share a row with the stage switch, which gets its own row on phones. "Follow a team…" is the follow dropdown's first option.
 - Pool pages: standings plus match list with set scores, "Up next", the court for every match (shown as written on the sheet, e.g. "New Century FH #4"; "Sports Pavilion #3" shortens to "Court 3").
 - Bracket pages: champion banner with award, rounds side by side (stacked on phones), placement matches (3rd place, consolation) below, loser destinations, results table.
 - Follow a team (highlights it and jumps to its pool/bracket), Refresh button, optional auto-refresh every 60 s, highlight of changed cells since last refresh.
