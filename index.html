@@ -48,6 +48,7 @@
   .linkish { background: none; border: 0; color: #B8C3D9; font: 500 15px Barlow, sans-serif; text-decoration: underline; cursor: pointer; padding: 4px; }
 
   .event { color: #B8C3D9; font-size: 13px; margin-bottom: 2px; }
+  .site-label { background: #E4572E; color: #fff; font-weight: 700; font-size: 12px; letter-spacing: .04em; border-radius: 4px; padding: 1px 6px; margin-right: 8px; }
   .divs { max-width: 1100px; margin: 12px auto 0; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
   .divs button { font: 600 15px Barlow, sans-serif; white-space: nowrap; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); background: transparent; color: #fff; cursor: pointer; }
   .divs button[aria-pressed="true"] { background: #fff; color: var(--navy); border-color: #fff; }
@@ -167,7 +168,7 @@
 <header>
   <div class="top">
     <div class="titles">
-      <div class="event" id="eventLine">NCHVC pool play</div>
+      <div class="event"><span class="site-label" id="siteLabel" hidden></span><span id="eventLine">NCHVC pool play</span></div>
       <h1 id="title">Pool results</h1>
     </div>
     <button class="refresh" id="refreshBtn" type="button"><span class="spin" aria-hidden="true"></span><span id="refreshLabel">Refresh</span></button>
@@ -247,7 +248,11 @@ const SAVED_LIST = {
   ]
 };
 const DIVISIONS = SAVED_LIST.divs;
-const KEY = "nchvc-pool-viewer-v2";
+// A test copy of the viewer (config.js storageKey) keeps its settings apart from the live site's,
+// since both sites share the rheims2.github.io browser storage
+const KEY = VIEWER_CONFIG.storageKey || "nchvc-pool-viewer-v2";
+// config.js siteLabel (e.g. "TEST") marks a test copy in the page title and header
+const SITE_LABEL = VIEWER_CONFIG.siteLabel || "";
 
 /* ---------------- parsing (works from labels, not fixed cell addresses) ---------------- */
 function parseCSV(text) {
@@ -987,7 +992,8 @@ function renderDivisions() {
 const notices = () => { baseDivisions(); return [configWarning, mergeWarning].filter(Boolean).map(w => `<div class="msg err"><p>${esc(w)}</p></div>`).join(""); };
 function render() {
   const d = current(), s = slot(d.id);
-  document.title = d.name + (d.type === "brackets" ? " brackets" : " pools"); $("title").textContent = d.name;
+  document.title = (SITE_LABEL ? SITE_LABEL + " · " : "") + d.name + (d.type === "brackets" ? " brackets" : " pools"); $("title").textContent = d.name;
+  $("siteLabel").hidden = !SITE_LABEL; $("siteLabel").textContent = SITE_LABEL;
   $("eventLine").textContent = eventName() + (d.type === "brackets" ? " bracket play" : " pool play");
   renderDivisions(); updateStatus(); busy(s.busy);
   if (setup) { $("bar").hidden = true; return renderSetup(); }
