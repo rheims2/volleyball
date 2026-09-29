@@ -194,7 +194,7 @@
   :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   /* Add to Home Screen: a card at the bottom on the first visit from a phone, and a button at the end of the page */
   [hidden] { display: none !important; }
-  .foot { text-align: center; padding: 0 16px calc(28px + env(safe-area-inset-bottom, 0px)); margin-top: -12px; }
+  .pagefoot { text-align: center; padding: 0 16px calc(28px + env(safe-area-inset-bottom, 0px)); margin-top: -12px; }
   .install { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 460px; margin: 0 auto; z-index: 10;
     display: flex; gap: 12px; align-items: flex-start; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 14px;
     box-shadow: 0 10px 30px rgba(19, 41, 75, .28); }
@@ -241,7 +241,7 @@
   </div>
 </div>
 <main id="main"></main>
-<footer class="foot"><button class="ghost" id="installBtn" type="button" hidden>Add to Home Screen</button></footer>
+<footer class="pagefoot"><button class="ghost" id="installBtn" type="button" hidden>Add to Home Screen</button></footer>
 <div class="install" id="install" role="dialog" aria-labelledby="installTitle" hidden>
   <img src="icons/apple-touch-icon.png" alt="" width="52" height="52">
   <div>
