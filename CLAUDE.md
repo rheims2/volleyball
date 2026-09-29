@@ -8,7 +8,7 @@ A single-page viewer for the NCHVC volleyball Nationals pool play and bracket pl
 - `config.js`: sets `window.VIEWER_CONFIG`. Kept separate so replacing `index.html` never loses it.
   - `divisionsSheet`: link to the user's divisions Google Sheet, the division list.
   - `sheetsApiKey`: Google Sheets API key, used only for division discovery. It's public by design, so it's restricted in Google Cloud Console to the Sheets API and the referrer `https://rheims2.github.io/volleyball/*`. Never put it in `index.html`.
-  - `indexSheet` (optional): the "Nationals Bracket Index" link; `index.html` has the 2025 one as a default.
+  - `indexSheet`: the NCHVC bracket index the division list is built from. Now the 2026 Regionals index ("Bracket Index - Regionals - 2026 NCHVC", tab "Regionals Index", gid 760812890); `index.html` still has the 2025 Nationals one as a default.
 
 ## How data is loaded
 
@@ -20,14 +20,16 @@ A single-page viewer for the NCHVC volleyball Nationals pool play and bracket pl
 
 ## Division discovery (NCHVC index, Sheets API)
 
-The index doesn't change once published, so discovery runs once and fills the divisions sheet; after that the viewer only reads the sheet. The Add a division page shows the sheet's rows ready to copy (`sheetRows`, tab separated so they paste into Google Sheets as cells): every readable tab with Show = Yes, unreadable ones with Show = No, and rows already in the sheet keep their name, Show and tags. The rows start from `SAVED_LIST` in `index.html` (the last discovery: 2026-09-28 with the Silver, Bronze and Copper layouts, 48 readable tabs, 12 not); "Build rows from the NCHVC index" reruns discovery through the API to rebuild them, for example for next year's index. Rebuilding never changes the list itself. `SAVED_LIST` is also the list when the sheet can't be read.
+The index doesn't change once published, so discovery runs once and fills the divisions sheet; after that the viewer only reads the sheet. The Add a division page shows the sheet's rows ready to copy (`sheetRows`, tab separated so they paste into Google Sheets as cells): every readable tab with Show = Yes, unreadable ones with Show = No, and rows already in the sheet keep their name, Show and tags. The rows start from `SAVED_LIST` in `index.html` (the last discovery: 2026-09-29 from the 2026 Heartland Regionals index, 19 readable tabs, 1 not); "Build rows from the NCHVC index" reruns discovery through the API to rebuild them for a new index. Rebuilding never changes the list itself. Sheet rows from spreadsheets the index doesn't link are left out, so a new event's rows replace the old event's; the Event row comes from the new index. `SAVED_LIST` is also the list when the sheet can't be read.
+
+History: the 2025 Nationals index (gid 1891963095 of 1ONzz5XqL-…) had 16 division spreadsheets and 60 tabs, 48 readable.
 
 `discoverDivisions` builds the division list from the official index:
 
-1. One `spreadsheets.get` of the index with `fields=sheets(properties(sheetId,title),data(rowData(values(formattedValue,hyperlink,textFormatRuns(format(link(uri))),userEnteredValue(formulaValue)))))`. The tab matching the link's gid is used ("🏐Nationals Index", gid 1891963095; an old "Nationals Index.OG" tab also exists). In the 2025 index every division link is a plain cell `hyperlink`; rich-text links (`textFormatRuns`) appear only on non-division cells, and there are no `HYPERLINK()` formulas, but all three are handled. Only cells labelled like "G18u D1", "GJV", "B16u" count, which skips the "Big Picture Nationals Prelim Schedule" link and the forms.
-2. One `spreadsheets.get` per linked spreadsheet with `fields=properties(title),sheets(properties(sheetId,title,hidden))`. The API can't batch across spreadsheets, so a discovery costs 17 reads (1 + 16), run 4 at a time. Hidden tabs and Home/Ref are skipped. A title containing "Pool" means pool play; everything else is a bracket.
-3. Each candidate tab is fetched through the public CSV path and kept only if `tabReadable` passes: a pool with at least 2 teams, or titled brackets with at least one team where every bracket on the tab has rounds named from its match names, each round feeds the next (half as many matches, or as many when top seeds get a bye), the round before the final has 2 matches, and there's a single final. (`parseBrackets` turns any time cell into a match, so "found a bracket" alone means nothing; the shape check keeps out tabs like the "Gold Bracket" ones, whose brackets parse into lopsided rounds.) Failures are listed on the Add a division page.
-4. Names come from the spreadsheet title ("Girls 18u D1 - 2025 NCHVC" gives "Girls 18U D1") plus the tab: a "Pools" tab is just the division name, "D1 Gold Ball Brackets" becomes "Girls 18U D1 Gold Ball". The event label ("2025 NCHVC") also comes from the title.
+1. One `spreadsheets.get` of the index with `fields=sheets(properties(sheetId,title),data(rowData(values(formattedValue,hyperlink,textFormatRuns(format(link(uri))),userEnteredValue(formulaValue)))))`. The tab matching the link's gid is used ("🏐Nationals Index", gid 1891963095; an old "Nationals Index.OG" tab also exists). In the 2025 index every division link is a plain cell `hyperlink`; rich-text links (`textFormatRuns`) appear only on non-division cells, and there are no `HYPERLINK()` formulas, but all three are handled. Only cells labelled like "G18u D1", "GJV", "B16u" count, which skips the "Big Picture Nationals Prelim Schedule" link and the forms. Links may be `.../spreadsheets/d/ID` or `.../spreadsheets/u/0/d/ID` (the 2026 Regionals index uses both).
+2. One `spreadsheets.get` per linked spreadsheet with `fields=properties(title),sheets(properties(sheetId,title,hidden))`. The API can't batch across spreadsheets, so a discovery costs 1 read plus 1 per spreadsheet (17 for 2025 Nationals, 8 for 2026 Regionals), run 4 at a time. Hidden tabs and Home/Ref are skipped. A title containing "Pool" means pool play; everything else is a bracket.
+3. Each candidate tab is fetched through the public CSV path and kept only if `tabReadable` passes: a pool with at least 2 teams (or, before seeding, at least 2 numbered places and a schedule), or titled brackets where every bracket on the tab has rounds named from its match names, each round feeds the next (half as many matches, or as many when top seeds get a bye), the round before the final has 2 matches, and there's a single final. (`parseBrackets` turns any time cell into a match, so "found a bracket" alone means nothing; the shape check keeps out tabs like the "Gold Bracket" ones, whose brackets parse into lopsided rounds.) Failures are listed on the Add a division page.
+4. Names come from the spreadsheet title ("Girls 18u D1 - 2025 NCHVC" gives "Girls 18U D1"; "Girls 18u - 2026 Heartland - NCHVC" gives "Girls 18U") plus the tab: a "Pools" tab is just the division name, "D1 Gold Ball Brackets" becomes "Girls 18U D1 Gold Ball", "Gold Bracket" becomes "Gold". The event label ("2025 NCHVC", "2026 Heartland NCHVC") is what follows the year in the title.
 
 Quota: the Sheets API allows about 300 reads per minute for the whole project. Discovery never runs on page load or score refreshes, only from the button (17 reads). Any failure sets a backoff (`…-backoff`) that disables the button: 10 minutes, and on a 429 doubling up to 2 hours. The list already in use stays.
 
@@ -47,9 +49,9 @@ The sheet is the whole list: deleting a row removes that division, Show = No hid
 
 ## Pool play sheet layout (parser: `parsePools`)
 
-Parsed by labels, not fixed cell addresses. Per pool:
+Parsed by labels, not fixed cell addresses. Each pool ends with a "Pool A Results" row ("Consolation Pool Results", "Iron Pool B Results"), so a pool runs from just after the previous pool's Results row to its own and is named by it; the button shows the letter ("A") or the name ("Consolation"). Schedule headers vary too much to split on: "Pool A Schedule", "Pool Schedule", "Pool D Schedule- Play 3 Sets", "Consolation Pool Schedule- Best of 3", or "Friday Schedule-" and "Saturday Schedule-" in one pool (2026 B16u). Tabs without Results rows fall back to "Pool X Schedule" headers. Per pool:
 
-- "Pool X Schedule" row, then rows with "Match #n", court, time ("4:15 PM" or "Rolling"), team A, "vs", team B.
+- Rows with "Match #n", court, time ("4:15 PM" or "Rolling"), team A, "vs", team B. Consolation pools put a "Team 3" placeholder beside each name; it's skipped. Before seeding the names are blank and show as "To be decided".
 - "Seed" header row with opponent team names across and a "Sets" column. Each team row: seed number, team, +/-; then 3-column blocks per opponent (diff, team, opponent), with "Set 1"/"Set 2" rows below holding own score and opponent score. Negative numbers appear as "(29)".
 - "Pool X Results" row (contains "complete" when final), then "Rank", "Team", "Advancement" header and ranked rows. A long note (e.g. the Team USA advancement rule) may sit in the Rank row.
 - Standings are computed from set scores (sets won, point diff) and labeled unofficial until the pool is complete; then the official order and advancement are shown.
@@ -76,9 +78,11 @@ Layouts seen in 2025:
 - Copper: the 8-team Bronze layout with the final named "Copper 1st" (most divisions); G12u Copper has 6 teams, with the top two seeds going straight to the semis.
 - Copper Finals (G16u D2) and Iron Finals: only the 1st, 3rd, 5th (and 7th) place matches, seeded from the pools ("1A" = 1st in pool A). GJV Iron's 7th place match has a single team.
 
-Not supported yet: the "Gold"/"Gold Bracket" tabs (G16u D2, G14u D2, G12u, B16u; their Gold and Bronze Ball brackets share a tab and parse into lopsided rounds), Play-in + Seeding and Seeding + Qualifier. Iron Pools, Copper Pools and Consolation Pool tabs don't parse with `parsePools` either. Discovery drops these tabs; they're listed on the Add a division page.
+Not supported yet: the "Gold"/"Gold Bracket" tabs (G16u D2, G14u D2, G12u, B16u; their Gold and Bronze Ball brackets share a tab and parse into lopsided rounds), Play-in + Seeding and Seeding + Qualifier. (The Iron Pools, Copper Pools and Consolation Pool tabs do parse now, since pools are split on their Results rows.) Discovery drops unsupported tabs; they're listed on the Add a division page.
 
-Before seeding, a bracket tab has no teams, so discovery drops it. Rerun discovery once teams appear.
+Brackets before seeding (the 2026 Regionals tabs, a few days before the event): the seed numbers are filled in but the team cells are empty, so every slot shows "To be decided". Discovery keeps these tabs on the layout check alone. Regional bracket titles name the event ("G18u 2026 NCHVC Heartland Regional Champions"), so the class button takes the colour word from the title or the match names ("Gold", "Silver"). "Losing team to / 7th Place Game Below" notes are ignored; the placement match is shown anyway.
+
+2026 Regionals layouts: Gold Bracket = the 8-team Copper layout ("Gold Quarter", "Gold Con Semi", "Gold 1st (Best of 5)"); Silver Bracket and B18u Gold = 7 teams, 3 quarterfinals; G12u Gold = 4 teams; GJV Consolation = placement matches only. Not supported: GJV "FRI Qualifier" (four single play-in matches, "Winning team to / Gold Bracket #5", no champion title).
 
 ## Features
 

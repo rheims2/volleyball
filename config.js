@@ -8,6 +8,7 @@ window.VIEWER_CONFIG = {
   // Sheets API and to this site's address in Google Cloud Console.
   sheetsApiKey: "AIzaSyBO9bvtoXLMAua2DZyNit1WphNDnh9eGwE",
 
-  // The official "Nationals Bracket Index". Change it when a new year's index is published.
+  // The NCHVC bracket index the division list is built from (now the 2026 Regionals index).
+  // Change it when a new index is published, then rebuild the rows on the Add a division page.
   indexSheet: "https://docs.google.com/spreadsheets/d/1BMqNRKu8dxVG3EzBou6Kv1jYtITo_4baXkJebuHOcbI/edit?gid=760812890#gid=760812890"
 };
