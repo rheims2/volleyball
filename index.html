@@ -126,6 +126,7 @@
   .pool-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 16px; }
   .pool-head h2 { font: 700 34px/1 "Barlow Condensed", sans-serif; margin: 0; }
   .pool-head .where { color: var(--muted); font-size: 16px; }
+  .pool-head .sheetlink { margin-left: auto; font-size: 14px; font-weight: 600; color: var(--navy-2); white-space: nowrap; }
   .badge { font: 700 14px Barlow, sans-serif; padding: 3px 10px; border-radius: 999px; background: var(--line); color: var(--ink); }
   .badge.final { background: var(--win); color: #fff; }
   .badge.live { background: var(--gold); color: var(--navy); }
@@ -1223,7 +1224,9 @@ function render() {
   if (!model) { $("bar").hidden = true; $("main").innerHTML = html; return; }
 
   $("bar").hidden = false;
-  if (model.kind === "brackets") return renderBrackets(s, html);
+  // The tournament's own tab, for anything this page doesn't show
+  const sheet = /^https:\/\/docs\.google\.com\//.test(d.url) ? `<a class="sheetlink" href="${esc(d.url)}" target="_blank" rel="noopener">Open sheet ↗</a>` : "";
+  if (model.kind === "brackets") return renderBrackets(s, html, sheet);
   $("pools").innerHTML = model.pools.map(p =>
     `<button type="button" data-pool="${esc(p.letter)}" aria-pressed="${p.letter === s.active}" class="${p.complete ? "done" : ""}" aria-label="${esc(p.name)}${p.complete ? ", final" : ""}">${esc(p.letter)}</button>`).join("");
   const allTeams = model.pools.flatMap(p => p.teams.map(t => t.team)).sort((a, b) => a.localeCompare(b));
@@ -1271,7 +1274,7 @@ function render() {
       <div class="side ${res[1]}"><span class="nm">${m.b ? esc(m.b) : `<em style="color:var(--muted);font-weight:400">To be decided</em>`}</span><span class="sets">${setCells(1)}</span></div></li>`;
   }).join("");
 
-  html += `<div class="pool-head"><h2>${esc(p.name)}</h2>${badge}<span class="where">${esc(courts.join(" and "))}</span></div>
+  html += `<div class="pool-head"><h2>${esc(p.name)}</h2>${badge}<span class="where">${esc(courts.join(" and "))}</span>${sheet}</div>
     <div class="grid">
       <section class="card"><h3>Standings</h3>${table}<p class="note">${esc(standNote)}</p></section>
       <section class="card"><h3>Matches</h3><ol class="matches">${matches}</ol></section>
@@ -1281,7 +1284,7 @@ function render() {
   flashKeys = new Set();
 }
 
-function renderBrackets(s, html) {
+function renderBrackets(s, html, sheet) {
   const model = s.model;
   const list = model.brackets.filter(g => g.matches.length);
   $("pools").innerHTML = list.map(g =>
@@ -1329,7 +1332,7 @@ function renderBrackets(s, html) {
     g.results.map((r, i) => `<tr class="${mine(r.team) ? "mine" : ""}"><td class="rank">${esc(r.rank || i + 1)}</td><td><span class="team">${esc(r.team)}</span></td>${hasNext ? `<td>${esc(r.adv)}</td>` : ""}</tr>`).join("")
   }</tbody></table><p class="note">${hasNext ? "Final placement and where each team plays next, from the tournament sheet." : "Final placement from the match results."}</p></section>` : "";
 
-  html += `<div class="pool-head"><h2>${esc(g.title)}</h2>${badge}</div>
+  html += `<div class="pool-head"><h2>${esc(g.title)}</h2>${badge}${sheet}</div>
     ${champ}
     <div class="bracket" style="--rounds:${g.rounds.length}">${rounds}</div>
     ${extra ? `<h2 class="subhead">Placement matches</h2><div class="bracket placements">${extra}</div>` : ""}
