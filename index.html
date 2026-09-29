@@ -156,7 +156,7 @@
 <header>
   <div class="top">
     <div>
-      <div class="event" id="eventLine">2025 NCHVC pool play</div>
+      <div class="event" id="eventLine">NCHVC pool play</div>
       <h1 id="title">Pool results</h1>
       <div class="status" id="status" aria-live="polite">Loading results…</div>
     </div>
@@ -193,11 +193,11 @@
 ------------------------------------------------------------------- */
 const VIEWER_CONFIG = window.VIEWER_CONFIG || {};
 const CONFIG_SHEET = VIEWER_CONFIG.divisionsSheet || "";
-/* Division discovery reads the official "Nationals Bracket Index" through the
+/* Division discovery reads the official NCHVC bracket index through the
    Google Sheets API (the public feeds don't include link addresses). The API key
    lives in config.js as sheetsApiKey. Scores never use the API. */
 const API_KEY = VIEWER_CONFIG.sheetsApiKey || "";
-const INDEX_SHEET = VIEWER_CONFIG.indexSheet || "https://docs.google.com/spreadsheets/d/1ONzz5XqL-buAxvHXNHfuTRtDayzaM10Cy7KlOdt5GL0/edit?gid=1891963095#gid=1891963095";
+const INDEX_SHEET = VIEWER_CONFIG.indexSheet || "https://docs.google.com/spreadsheets/d/1BMqNRKu8dxVG3EzBou6Kv1jYtITo_4baXkJebuHOcbI/edit?gid=760812890#gid=760812890";
 
 /* The division list, saved from the NCHVC bracket index (now the 2026 Regionals one) (tabs checked
    readable by the parsers). Visitors use this list, so they never call the Sheets
@@ -647,7 +647,7 @@ async function loadConfig() {
     configWarning = configDivs ? "" : "Couldn't read the divisions sheet, so the saved list of divisions is showing.";
   }
 }
-const eventName = () => (configDivs && configDivs.event) || (discovered && discovered.event) || "2025 NCHVC";
+const eventName = () => (configDivs && configDivs.event) || (discovered && discovered.event) || "NCHVC";
 
 /* ---------------- division list: the divisions sheet ---------------- */
 /* The divisions sheet is the list. It's filled once from the NCHVC index: the Add a
@@ -733,7 +733,7 @@ function indexLinks(data, gid) {
   return out;
 }
 
-// "Girls 18u D1/D2 Pools - 2025 NCHVC" -> "Girls 18U D1/D2"; the index label ("G18u D1") if the title doesn't say
+// "Girls 18u - 2026 Heartland - NCHVC" -> "Girls 18U"; the index label ("G18u") if the title doesn't say
 function bookName(label, title) {
   let t = String(title || "").replace(/\s*-\s*\d{4}\b.*$/i, "").trim();
   if (!/^(girls|boys)\b/i.test(t)) t = label.replace(/^G\s*/i, "Girls ").replace(/^B\s*/i, "Boys ");
@@ -775,7 +775,7 @@ async function discoverDivisions(progress) {
     const l = links[i];
     if (!b || b.error) return failed.push({ name: l.label, tab: "", reason: "couldn't list its tabs" + (b && b.error ? ` (${b.error.message})` : "") });
     const title = (b.properties && b.properties.title) || "";
-    // "Girls 18u D1 - 2025 NCHVC" -> "2025 NCHVC"; "Girls 18u - 2026 Heartland - NCHVC" -> "2026 Heartland NCHVC"
+    // "Girls 18u - 2026 Heartland - NCHVC" -> "2026 Heartland NCHVC"
     event = event || ((title.match(/-\s*(\d{4}\b.*)$/) || [])[1] || "").replace(/\s*-\s*/g, " ").trim();
     const base = bookName(l.label, title);
     (b.sheets || []).forEach(({ properties: p }) => {
