@@ -49,10 +49,6 @@
   .status-row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; max-width: 1100px; margin: 6px auto 0; }
   .status { color: var(--on-dark-muted); font-size: 14px; }
   .status .stale { color: var(--accent-soft); }
-  /* An outlined button, so the filled Refresh button stays the main one */
-  .volunteer { font: 700 14px Barlow, sans-serif; color: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 999px;
-    padding: 4px 12px; text-decoration: none; white-space: nowrap; }
-  .volunteer:hover { background: var(--accent); color: var(--on-accent); }
   .refresh {
     font: 700 15px Barlow, sans-serif; background: var(--accent); color: var(--on-accent); border: 0; border-radius: 999px;
     padding: 8px 16px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; flex: none;
@@ -252,10 +248,8 @@
     </div>
     <button class="refresh" id="refreshBtn" type="button"><span class="spin" aria-hidden="true"></span><span id="refreshLabel">Refresh</span></button>
   </div>
-  <!-- Full width under the title, so the volunteer button fits beside "Updated…" on phones too -->
   <div class="status-row">
     <span class="status" id="status" aria-live="polite">Loading results…</span>
-    <a class="volunteer" id="volunteerLink" href="#" target="_blank" rel="noopener" hidden>Volunteer sign-up</a>
   </div>
   <div class="filterbar">
     <div class="filters" id="filters" aria-label="Filters"></div>
@@ -1783,7 +1777,6 @@ $("followSel").addEventListener("change", e => {
   render();
 });
 setInterval(updateStatus, 30000);
-if (VOLUNTEER_SHEET) { $("volunteerLink").href = VOLUNTEER_SHEET; $("volunteerLink").hidden = false; }
 if ("auto" in settings) { delete settings.auto; save(); }   // auto-refresh was removed; forget the old setting
 
 /* ---------------- Add to Home Screen ----------------
