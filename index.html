@@ -321,6 +321,7 @@ const SAVED_LIST = {
     {id: "pools:girls-jv", type: "pools", name: "Girls JV", url: "https://docs.google.com/spreadsheets/d/1hv5NuNFqp7oaYyet6Psjd_2djblKJOoLFnAaIH9qMls/edit#gid=1936931201"},
     {id: "brackets:girls-jv-gold", type: "brackets", name: "Girls JV Gold", url: "https://docs.google.com/spreadsheets/d/1hv5NuNFqp7oaYyet6Psjd_2djblKJOoLFnAaIH9qMls/edit#gid=493450767"},
     {id: "brackets:girls-jv-consolation", type: "brackets", name: "Girls JV Consolation", url: "https://docs.google.com/spreadsheets/d/1hv5NuNFqp7oaYyet6Psjd_2djblKJOoLFnAaIH9qMls/edit#gid=750681530"},
+    {id: "pools:girls-jv-fri-qualifier", type: "pools", name: "Girls JV FRI Qualifier", url: "https://docs.google.com/spreadsheets/d/1hv5NuNFqp7oaYyet6Psjd_2djblKJOoLFnAaIH9qMls/edit#gid=120168667"},
     {id: "pools:girls-16u", type: "pools", name: "Girls 16U", url: "https://docs.google.com/spreadsheets/d/1DK0WJbG4KXt0bEXwZ8JOOItYdlbwYPQQBAvWgS9h_4s/edit#gid=1936931201"},
     {id: "brackets:girls-16u-gold", type: "brackets", name: "Girls 16U Gold", url: "https://docs.google.com/spreadsheets/d/1DK0WJbG4KXt0bEXwZ8JOOItYdlbwYPQQBAvWgS9h_4s/edit#gid=493450767"},
     {id: "pools:girls-14u", type: "pools", name: "Girls 14U", url: "https://docs.google.com/spreadsheets/d/1RfZyKbzSnlUaerlwguhxGXqE1aYFVfEVFXBnZzgRNgA/edit#gid=1936931201"},
@@ -335,7 +336,6 @@ const SAVED_LIST = {
     {id: "pools:boys-16u", type: "pools", name: "Boys 16U", url: "https://docs.google.com/spreadsheets/d/1O5cvGPgUlDi3VAZmgqVNtIrp3xedGdQwjSnQXG8nBgo/edit#gid=1511652398"}
   ],
   failed: [
-    {name: "Girls JV FRI Qualifier", tab: "FRI Qualifier", book: "GJV", url: "https://docs.google.com/spreadsheets/d/1hv5NuNFqp7oaYyet6Psjd_2djblKJOoLFnAaIH9qMls/edit#gid=120168667", reason: "no brackets found"}
   ]
 };
 const DIVISIONS = SAVED_LIST.divs;
@@ -496,7 +496,7 @@ function parseBrackets(rows) {
 
   // Matches: anchored on the start-time cell, with day above and court + match name below
   const matches = cells.filter(x => isTime(x.v)).map(({ r, c, v }) => {
-    const m = { r, c, time: v, day: at(r - 1, c), court: at(r + 1, c), name: at(r + 2, c), format: "", top: null, bottom: null, sets: [], winner: null, loserTo: "" };
+    const m = { r, c, time: v, day: at(r - 1, c), court: at(r + 1, c), name: at(r + 2, c), format: "", top: null, bottom: null, sets: [], winner: null, loserTo: "", winnerTo: "" };
     for (let k = 1; k <= 7; k++) {
       const rr = r - k; if (rr < 0 || isTime(at(rr, c))) break;
       if (/best of \d/i.test(at(rr, c))) m.format = at(rr, c);
@@ -563,6 +563,10 @@ function parseBrackets(rows) {
     const to = at(x.r + 1, x.c); if (/game below/i.test(to)) return;   // points at a placement match shown anyway
     const m = nearest(matches, x.r); if (m) m.loserTo = to;
   });
+  // Where each winning team goes ("Winning team to" / destination), on qualifier tabs
+  cells.filter(x => /^winning team to$/i.test(x.v)).forEach(x => {
+    const to = at(x.r + 1, x.c); const m = nearest(matches, x.r); if (m && to) m.winnerTo = to;
+  });
   // Awards ("Winner:" / "Gold Ball & Medals")
   cells.filter(x => /^winner:?$/i.test(x.v)).forEach(x => {
     const row = rows[x.r]; const val = row.slice(x.c + 1).find(Boolean) || "";
@@ -596,6 +600,8 @@ function parseBrackets(rows) {
      Final make the bracket, and 3rd place and the consolation side are listed below it.
      Otherwise rounds are the columns, rightmost being the Final. */
   const KINDS = [
+    // Play-in matches before the bracket ("GJV Qualifier"): winners and losers go elsewhere, no champion
+    { k: "qualifier", re: /qualif|play[\s-]?in/i, name: "Qualifier" },
     { k: "quarter", re: /quarter/i, name: "Quarterfinals", next: "semi" },
     { k: "consemi", re: /\bcon(s|solation)?\.?\s*semi/i, name: "Consolation semifinals", extra: true, next: "5th" },
     { k: "semi", re: /semi/i, name: "Semifinals", next: "final" },
@@ -605,7 +611,7 @@ function parseBrackets(rows) {
     { k: "final", re: /\bball\b|champ|undisputed|final|\b1st\b/i, name: "Final" }
   ];
   const kindOf = m => KINDS.find(x => x.re.test(m.name));
-  const ORDER = ["quarter", "semi", "final", "3rd", "consemi", "5th", "7th"];
+  const ORDER = ["qualifier", "quarter", "semi", "final", "3rd", "consemi", "5th", "7th"];
   const roundNames = ["Final", "Semifinals", "Quarterfinals", "Round of 16", "Round of 32"];
   groups.forEach(g => {
     const byRow = list => list.sort((a, b) => a.r - b.r || a.c - b.c);
@@ -633,7 +639,10 @@ function parseBrackets(rows) {
         else if (m.bottom && ahead.has(m.bottom.team)) m.winner = "bottom";
       });
     });
-    const fin = g.rounds.length ? g.rounds[g.rounds.length - 1].matches[0] : null;
+    // A tab of qualifier matches only has no final: it's named after its matches ("GJV Qualifier")
+    g.qualifier = all.length > 0 && all.every(rd => rd.kind && rd.kind.k === "qualifier");
+    if (g.qualifier && g.key === "b0") { g.title = g.matches[0].name || "Qualifier"; g.label = "Qualifier"; }
+    const fin = !g.qualifier && g.rounds.length ? g.rounds[g.rounds.length - 1].matches[0] : null;
     if (!g.champion && fin && fin.winner) g.champion = fin[fin.winner].team;
     /* No results table: build one from the final and the 3rd/5th/7th place matches
        (winner takes that place, loser the next), falling back to the placement titles
@@ -649,7 +658,8 @@ function parseBrackets(rows) {
       [3, 5, 7].forEach(n => { const rd = all.find(x => x.kind && x.kind.k === n + (n === 3 ? "rd" : "th")); put(n, rd && rd.matches[0]); });
       g.results = Object.keys(places).map(Number).sort((a, b) => a - b).map(n => ({ rank: String(n), team: places[n], adv: "" }));
     }
-    g.state = g.complete || g.champion ? "final" : g.matches.some(m => m.winner) ? "live" : "new";
+    const allPlayed = g.qualifier && g.matches.every(m => m.winner);
+    g.state = g.complete || g.champion || allPlayed ? "final" : g.matches.some(m => m.winner) ? "live" : "new";
     const firstOpen = all.flatMap(rd => rd.matches).find(m => !m.winner && m.top && m.bottom);
     if (firstOpen) firstOpen.next = true;
     g.teams = [...new Set(g.matches.flatMap(m => [m.top, m.bottom]).filter(Boolean).map(t => t.team))];
@@ -805,7 +815,7 @@ function sheetRows(found) {
   const add = (d, show) => { const r = mine(d);
     out.push([stage(d.type), r ? r.name : d.name, d.url, r && r.hidden ? "No" : show, r ? r.gender : "", r ? r.age : "", r ? r.level : "", r ? r.bracket : ""]); };
   found.divs.forEach(d => add(d, "Yes"));
-  (found.failed || []).filter(f => f.url).forEach(f => add({ type: /pool/i.test(f.tab) ? "pools" : "brackets", name: f.name, url: f.url }, "No"));
+  (found.failed || []).filter(f => f.url).forEach(f => add({ type: /pool|qualif/i.test(f.tab) ? "pools" : "brackets", name: f.name, url: f.url }, "No"));
   rows.forEach((r, k) => { if (!used.has(k) && books.has((linkParts(r.url) || {}).id) && !out.some(o => sameTab(o[2], r.url))) out.push([stage(r.type), r.name, r.url, r.hidden ? "No" : "Yes", r.gender, r.age, r.level, r.bracket]); });
   return out.map(r => r.map(v => String(v || "").replace(/[\t\n]/g, " ")).join("\t")).join("\n");
 }
@@ -874,7 +884,10 @@ const SKIP_TABS = /^(home|ref|referees?|instructions?)$/i;
 function tabReadable(d, rows) {
   // Before seeding a pool has numbered places and a schedule but no team names yet
   if (d.type === "pools") return parsePools(rows).pools.some(p => p.teams.length >= 2 || (p.slots >= 2 && p.matches.length));
-  const list = parseBrackets(rows).brackets.filter(g => g.key !== "b0" && g.matches.length);
+  const all = parseBrackets(rows).brackets.filter(g => g.matches.length);
+  // A tab of qualifier (play-in) matches only, with no champion title ("GJV FRI Qualifier")
+  if (all.length && all.every(g => g.qualifier)) return true;
+  const list = all.filter(g => g.key !== "b0");
   // Each round feeds the next: half as many matches, or as many when top seeds get a bye
   const halves = g => g.rounds.every((rd, i) => { const n = g.rounds[i + 1]; return !n || (rd.matches.length >= n.matches.length && rd.matches.length <= 2 * n.matches.length); })
     && (!g.rounds.length || g.rounds[g.rounds.length - 1].matches.length === 1)
@@ -900,7 +913,8 @@ async function discoverDivisions(progress) {
     const base = bookName(l.label, title);
     (b.sheets || []).forEach(({ properties: p }) => {
       if (p.hidden || SKIP_TABS.test(p.title.trim())) return;
-      const type = /pool/i.test(p.title) ? "pools" : "brackets";
+      // Qualifier (play-in) tabs are played with pool play, so they're listed there
+      const type = /pool|qualif/i.test(p.title) ? "pools" : "brackets";
       const name = tabName(base, p.title, type);
       candidates.push({ id: divId(type, name), type, name, url: `https://docs.google.com/spreadsheets/d/${l.id}/edit#gid=${p.sheetId}`, tab: p.title, book: l.label });
     });
@@ -1036,7 +1050,7 @@ async function refresh() {
   s.busy = true; busy(true);
   try {
     const rows = await fetchRows(parts);
-    const next = (d.type || "pools") === "brackets" ? parseBrackets(rows) : parsePools(rows);
+    const next = parseTab(d, rows);
     const items = next.kind === "brackets" ? next.brackets.filter(g => g.matches.length) : next.pools;
     if (!items.length) throw new Error("No pools found");
     const keys = snapshot(next);
@@ -1097,7 +1111,14 @@ function saveTab(d, rows) {
     try { localStorage.setItem(TABS_KEY, JSON.stringify(savedTabs)); } catch (e) {}
   }, 1000);
 }
-const parseTab = (d, rows) => (d.type || "pools") === "brackets" ? parseBrackets(rows) : parsePools(rows);
+const parseTab = (d, rows) => {
+  if ((d.type || "pools") === "brackets") return parseBrackets(rows);
+  const m = parsePools(rows);
+  if (m.pools.length) return m;
+  // A Pool play row whose tab has no pools: a qualifier tab, read as single matches
+  const b = parseBrackets(rows);
+  return b.brackets.some(g => g.qualifier) ? b : m;
+};
 // Fills the divisions not loaded yet from the saved tabs (same link only); they count as old, so they're fetched again
 function restoreTabs() {
   let oldest = null;
@@ -1665,7 +1686,10 @@ function renderBrackets(s, html, sheet) {
     const when = [m.day, m.time].filter(Boolean).join(" ");
     const tag = m.winner ? `<span class="tag final">Final</span>` : m.next ? `<span class="tag next">Up next</span>` : "";
     const loser = m.winner ? m[m.winner === "top" ? "bottom" : "top"] : null;
-    const foot = [m.forfeit ? `${esc(m.forfeit)} didn't show (forfeit)` : "", m.format, m.loserTo ? (loser ? `${esc(loser.team)} moves to ${esc(m.loserTo)}` : `Loser moves to ${esc(m.loserTo)}`) : ""].filter(Boolean).join(". ");
+    const winnerT = m.winner ? m[m.winner] : null;
+    const foot = [m.forfeit ? `${esc(m.forfeit)} didn't show (forfeit)` : "", m.format,
+      m.winnerTo ? (winnerT ? `${esc(winnerT.team)} moves to ${esc(m.winnerTo)}` : `Winner moves to ${esc(m.winnerTo)}`) : "",
+      m.loserTo ? (loser ? `${esc(loser.team)} moves to ${esc(m.loserTo)}` : `Loser moves to ${esc(m.loserTo)}`) : ""].filter(Boolean).join(". ");
     const flash = flashKeys.has(`${g.key}|m${m.r}-${m.c}`) ? " flash" : "";
     const followed = (m.top && mine(m.top.team)) || (m.bottom && mine(m.bottom.team)) ? " mine" : "";
     return `<div class="bmatch${flash}${followed}">
