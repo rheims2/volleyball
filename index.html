@@ -210,7 +210,8 @@
   .volform .spot { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; }
   .volform .spot input { accent-color: var(--dark); width: 18px; height: 18px; }
   .volform .spot.taken { color: var(--muted); background: var(--paper); }
-  .volform .spot .who { margin-left: auto; font-size: 14px; }
+  .volform .spot .who { margin-left: auto; font-size: 14px; white-space: nowrap; }
+  .volform .spot .volremove { padding: 3px 10px; font-size: 13px; margin-left: 4px; color: var(--accent-deep); border-color: var(--accent); }
   .volform label.name { display: block; font-weight: 600; margin: 14px 0 4px; }
   .volform input[type=text] { width: 100%; font: 500 16px Barlow, sans-serif; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; }
   .volform .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
@@ -1349,7 +1350,8 @@ async function loadVolunteers(force) {
       // Sign-ups still being saved stay on show (and a new game's rows stay until the sheet has them)
       volInflight.forEach(f => {
         const row = vol.rows.find(x => x.key === f.key && x.team === f.team);
-        if (row && !row.cells[f.role]) { row.cells[f.role] = f.name; row.saving = { ...(row.saving || {}), [f.role]: true }; }
+        if (row && f.remove) row.cells[f.role] = "";
+        else if (row && !row.cells[f.role]) { row.cells[f.role] = f.name; row.saving = { ...(row.saving || {}), [f.role]: true }; }
       });
     }
   } catch (e) { /* keep what we had; the buttons just don't show */ }
@@ -1411,6 +1413,33 @@ async function volSave(key, r, role, name) {
     volTell(key, `Your sign-up as ${role} for ${r.team} didn't save. Try again.`, "Try again");
   }
 }
+// Takes a sign-up off the sheet (after the confirm): shown as open straight away, put back if the script says no
+async function volRemove(key, r, role) {
+  const name = r.cells[role]; if (!name) return;
+  const flight = { key, team: r.team, role, name: "", remove: true };
+  volInflight.push(flight);
+  r.cells[role] = "";
+  volStatus[key] = `Taking ${name} off ${role} for ${r.team}…`;
+  render(); refreshVolForm(key);
+  const done = () => {
+    volInflight.splice(volInflight.indexOf(flight), 1);
+    const now = volRowsFor(key).find(x => x.team === r.team);
+    if (now && now !== r) now.cells[role] = r.cells[role];
+    render(); refreshVolForm(key);
+  };
+  let out;
+  // "current" (not "name"): a script from before removals then answers "name" instead of signing the name up again
+  try { out = await volPost({ action: "remove", match: r.match, team: r.team, role, current: name }, true); } catch (e) { out = { error: "network" }; }
+  if (out.ok) {
+    volStatus[key] = `${name} is off ${role} for ${r.team}. Removed ✓`;
+    return done();
+  }
+  r.cells[role] = out.value || name; delete volStatus[key];
+  done();
+  volTell(key, out.error === "changed" ? `The sheet shows ${out.value} for ${role} now, so nothing was removed.`
+    : out.error === "name" || out.error === "current" ? "The volunteer sheet's script needs updating before names can be removed."
+    : `Couldn't remove ${name} from ${role} for ${r.team}. Try again.`, out.error === "network" ? "Try again" : "");
+}
 // A failed save: said in the game's form when it's open (a note under it couldn't be tapped), else in a note
 function volTell(key, text, action) {
   const dlg = $("volForm");
@@ -1436,7 +1465,9 @@ function openVolForm(key) {
   const spot = (r, role, i) => {
     const v = r.cells[role];
     if (isNA(v)) return "";
-    return v ? `<div class="spot taken"><span>${esc(role)}</span><span class="who">${esc(v)}${r.saving && r.saving[role] ? " · saving…" : ""}</span></div>`
+    const saving = r.saving && r.saving[role];
+    return v ? `<div class="spot taken"><span>${esc(role)}</span><span class="who">${esc(v)}${saving ? " · saving…" : ""}</span>${
+      !saving && VOLUNTEER_SCRIPT ? `<button type="button" class="ghost volremove" data-remove="${i}|${esc(role)}" aria-label="Remove ${esc(v)} from ${esc(role)}">Remove</button>` : ""}</div>`
       : `<label class="spot"><input type="radio" name="spot" value="${i}|${esc(role)}" required> <span>${esc(role)}</span></label>`;
   };
   const open = volOpen(rows);
@@ -1451,10 +1482,14 @@ function openVolForm(key) {
     ${open && !VOLUNTEER_SCRIPT ? `<p class="sub" style="margin-top:12px">Sign-ups from this page aren't switched on yet. <a href="${esc(VOLUNTEER_SHEET)}" target="_blank" rel="noopener">Open the volunteer sheet</a>.</p>` : ""}
     <p class="err" id="volErr" hidden></p>
     <div class="actions">
-      <button type="button" class="ghost" id="volCancel">${open && VOLUNTEER_SCRIPT ? "Cancel" : "Close"}</button>
+      <button type="button" class="ghost" id="volCancel">Close</button>
       ${open && VOLUNTEER_SCRIPT ? `<button type="submit" class="refresh" id="volSubmit">Sign up</button>` : ""}
     </div></form>`;
   $("volCancel").addEventListener("click", () => dlg.close());
+  dlg.querySelectorAll("[data-remove]").forEach(b => b.addEventListener("click", () => {
+    const i = +b.dataset.remove.split("|")[0], role = b.dataset.remove.slice(b.dataset.remove.indexOf("|") + 1), r = rows[i];
+    if (confirm(`Remove ${r.cells[role]} from ${role} for ${r.team} (${r.match})?\n\nThis takes the name off the volunteer sheet.`)) volRemove(key, r, role);
+  }));
   const f = $("volF");
   f.addEventListener("submit", async e => {
     e.preventDefault();

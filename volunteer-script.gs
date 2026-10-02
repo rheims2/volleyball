@@ -17,6 +17,10 @@
  * they are in the sheet afterwards. A sign-up can carry the same rows as `add` (one request
  * instead of two): they're appended first when the game isn't in the sheet.
  *
+ * Removing a sign-up: { action: "remove", match, team, role, current } clears the cell when it still
+ * holds that name (the page asks for confirmation first). A different name in the cell (it was
+ * changed since the page loaded) is left alone and answered with "changed".
+ *
  * After changing this code: Deploy > Manage deployments > edit (pencil) > Version: New version >
  * Deploy. That keeps the same web app URL.
  */
@@ -97,8 +101,10 @@ function doPost(e) {
       if (hh < 0) return reply({ ok: false, error: "nomatchcolumn" });
       return addRows(sh, dat, hh, dat[hh].map(function (v) { return String(v).trim().toLowerCase(); }), req.rows);
     }
+    var remove = req.action === "remove";
     var name = clean(req.name, 60);
-    if (!name) return reply({ ok: false, error: "name" });
+    if (!name && !remove) return reply({ ok: false, error: "name" });
+    if (remove && !req.current) return reply({ ok: false, error: "current" });
 
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
     var data = sheet.getDataRange().getDisplayValues();
@@ -127,6 +133,14 @@ function doPost(e) {
     if (r < 0 && req.add) { appendRows(sheet, data, h, head, req.add); r = find(); }
     if (r < 0) return reply({ ok: false, error: "nogame" });
     var cur = String(data[r][rc]).trim();
+    if (remove) {
+      if (!cur) return reply({ ok: true });   // already empty
+      if (/^n\/?a$/i.test(cur)) return reply({ ok: false, error: "notneeded", value: "N/A" });
+      // only the name the page showed (a leading ' added against formulas isn't part of it)
+      if (cur !== String(req.current || "").replace(/^'/, "").trim()) return reply({ ok: false, error: "changed", value: cur });
+      sheet.getRange(r + 1, rc + 1).setValue("");
+      return reply({ ok: true });
+    }
     if (/^n\/?a$/i.test(cur)) return reply({ ok: false, error: "notneeded", value: "N/A" });
     if (cur) return reply({ ok: false, error: "taken", value: cur });
     sheet.getRange(r + 1, rc + 1).setValue(name);
