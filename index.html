@@ -1198,7 +1198,7 @@ function clubIndex() {
       const label = g.label && !/^champion$/i.test(g.label) && !d.name.toLowerCase().includes(g.label.toLowerCase()) ? ` ${g.label}` : "";
       games.push({ ids: [add(a), add(b)], a, b, where: `${d.name}${label} · ${rd.name}`, day: x.day, time: x.time,
         start: toMinutes(x.time), est: false, court: x.court, sets, played: !!winner, winner, forfeit: x.forfeit, d,
-        vol: volGame(d, { match: volBracketMatch(d, m, x), a, b, day: x.day, court: x.court, time: String(x.time || "").toUpperCase() }) });
+        vol: volGame(d, { match: volBracketMatch(d, m, x), base: volBracketBase(d, m, x), a, b, day: x.day, court: x.court, time: String(x.time || "").toUpperCase() }) });
     })));
   });
   return { teams, games };
@@ -1330,9 +1330,18 @@ const isNA = v => /^n\/?a$/i.test(String(v).trim());
 // Division code for Match names and team codes: "G16u" for Girls 16U, "GJV" for Girls JV
 const volShort = d => { const t = tagsOf(d); return t.gender && t.age ? t.gender[0] + (t.age === "JV" ? "JV" : t.age.toLowerCase()) : ""; };
 // A game with rows in the volunteer sheet: { key, match }. Games not in the sheet get no button.
+// Our team's code in the sheet: "16UB1" for Boys 16U "Des Moines Eclipse (IA)- 1", "JVG" for Girls JV
+const volTeamCode = (d, name) => { const t = tagsOf(d); return (t.age === "JV" ? "JV" : t.age) + (t.gender || " ")[0] + teamSuffix(name); };
+const VOL_CLUB = VIEWER_CONFIG.volunteerClub || DEFAULT_CLUB;
 function volGame(d, g) {
   if (!g.match) return null;
   const key = volNorm(g.match);
+  /* A bracket row can name the game as the tab does, without the number ("G16u Quarter" for
+     "G16u Quarter 2"): it's this game's when its Eclipse Team is one of ours playing in it */
+  if (!volRowsFor(key).length && g.base && volNorm(g.base) !== key) {
+    const codes = [g.a, g.b].filter(n => n && clubOf(n).toLowerCase() === VOL_CLUB.toLowerCase()).map(n => volTeamCode(d, n));
+    vol.rows.filter(r => r.key === volNorm(g.base) && codes.includes(r.team)).forEach(r => { r.key = key; });
+  }
   return volRowsFor(key).length ? { key, match: g.match } : null;
 }
 // A pool match's Match name, as the sheet writes it: "G16u Pool A M1"
@@ -1347,15 +1356,18 @@ function volBracketMatch(d, model, m) {
       if (short && !volNorm(base).startsWith(volNorm(short))) base = `${short} ${base}`;
       all.push({ x, base });
     })));
-    const names = new Map();
+    const names = new Map(), bases = new Map();
     const byBase = {}; all.forEach(e => (byBase[volNorm(e.base)] = byBase[volNorm(e.base)] || []).push(e));
     Object.values(byBase).forEach(list => {
       list.sort((u, v) => u.x.r - v.x.r || u.x.c - v.x.c);
-      list.forEach((e, i) => names.set(e.x, list.length > 1 ? `${e.base} ${i + 1}` : e.base));
+      list.forEach((e, i) => { names.set(e.x, list.length > 1 ? `${e.base} ${i + 1}` : e.base); bases.set(e.x, e.base); });
     });
-    model._volNames = names;
+    model._volNames = names; model._volBases = bases;
   }
   return model._volNames.get(m) || "";
+}
+// The same match's name without the number ("G16u Quarter"), as the volunteer sheet may write it
+function volBracketBase(d, model, m) { volBracketMatch(d, model, m); return model._volBases.get(m) || "";
 }
 async function loadVolunteers(force) {
   const parts = linkParts(VOLUNTEER_SHEET);
@@ -1695,7 +1707,7 @@ function renderBrackets(s, html, sheet) {
     return `<div class="bmatch${flash}${followed}">
       <div class="mhead"><span>${esc(when)}${m.court ? ", " + courtName(m.court) : ""}</span>${tag}</div>
       ${sideHtml("top")}${sideHtml("bottom")}
-      ${foot ? `<div class="foot">${foot}</div>` : ""}${volButton(volGame(d, { match: volBracketMatch(d, model, m), a: m.top && m.top.team, b: m.bottom && m.bottom.team,
+      ${foot ? `<div class="foot">${foot}</div>` : ""}${volButton(volGame(d, { match: volBracketMatch(d, model, m), base: volBracketBase(d, model, m), a: m.top && m.top.team, b: m.bottom && m.bottom.team,
         day: m.day, court: m.court, time: String(m.time || "").toUpperCase() }))}</div>`;
   };
 
