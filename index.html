@@ -558,14 +558,22 @@ function parseBrackets(rows) {
     return near ? near.x.group : nearest(groups, r);
   };
 
+  /* "Losing team to" / "Winning team to" notes sit just right of their match. The closest match by
+     row alone can be the final further right (its row is near the note's), so only matches to the
+     note's left count, nearest by row and column together. */
+  const noteMatch = x => {
+    const left = matches.filter(m => m.c < x.c);
+    if (!left.length) return nearest(matches, x.r);
+    return left.reduce((best, m) => { const d = Math.abs(m.r - x.r) + (x.c - m.c); return !best || d < best.d ? { m, d } : best; }, null).m;
+  };
   // Where each losing team goes ("Losing team to" / destination / team)
   cells.filter(x => /^losing team to$/i.test(x.v)).forEach(x => {
     const to = at(x.r + 1, x.c); if (/game below/i.test(to)) return;   // points at a placement match shown anyway
-    const m = nearest(matches, x.r); if (m) m.loserTo = to;
+    const m = noteMatch(x); if (m) m.loserTo = to;
   });
   // Where each winning team goes ("Winning team to" / destination), on qualifier tabs
   cells.filter(x => /^winning team to$/i.test(x.v)).forEach(x => {
-    const to = at(x.r + 1, x.c); const m = nearest(matches, x.r); if (m && to) m.winnerTo = to;
+    const to = at(x.r + 1, x.c); const m = noteMatch(x); if (m && to) m.winnerTo = to;
   });
   // Awards ("Winner:" / "Gold Ball & Medals")
   cells.filter(x => /^winner:?$/i.test(x.v)).forEach(x => {
