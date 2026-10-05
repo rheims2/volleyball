@@ -942,12 +942,20 @@ async function discoverDivisions(progress) {
   return { at: Date.now(), divs, failed, event, books: links.length };
 }
 
-function backoffLeft() { try { const b = JSON.parse(localStorage.getItem(KEY + "-backoff")) || {}; return Math.max(0, (b.until || 0) - Date.now()); } catch (e) { return 0; } }
-function setBackoff(hitLimit) {
-  let b = {}; try { b = JSON.parse(localStorage.getItem(KEY + "-backoff")) || {}; } catch (e) {}
-  // Google's "too many requests": wait 10 minutes, doubling each time up to 2 hours
-  const wait = hitLimit ? Math.min((b.wait || 5 * 60e3) * 2, 2 * 3600e3) : 10 * 60e3;
-  try { localStorage.setItem(KEY + "-backoff", JSON.stringify({ until: Date.now() + wait, wait })); } catch (e) {}
+const readBackoff = () => { try { return JSON.parse(localStorage.getItem(KEY + "-backoff")) || {}; } catch (e) { return {}; } };
+function backoffLeft() { return Math.max(0, (readBackoff().until || 0) - Date.now()); }
+function setBackoff(hitLimit, error) {
+  const b = readBackoff();
+  // Google's "too many requests": wait 10 minutes, doubling each time up to 2 hours. Any other
+  // failure (a key that doesn't accept this address, say) used one read or so: wait 2 minutes.
+  const wait = hitLimit ? Math.min((b.wait || 5 * 60e3) * 2, 2 * 3600e3) : 2 * 60e3;
+  try { localStorage.setItem(KEY + "-backoff", JSON.stringify({ until: Date.now() + wait, wait: hitLimit ? wait : b.wait, hitLimit: !!hitLimit, error })); } catch (e) {}
+}
+// Why rebuilding failed, in words; a key that doesn't accept this site's address says which address to add
+function discoveryHelp(msg, status) {
+  if (status === 429) return "Google asked us to slow down.";
+  if (/referer|referrer/i.test(msg) || status === 403) return msg + ` The API key doesn't accept this site's address: add ${location.origin + location.pathname.replace(/[^/]*$/, "")}* to the key's allowed websites in Google Cloud Console (a change there can take 5 minutes to apply).`;
+  return msg;
 }
 
 // Runs only when someone clicks "Build rows from the NCHVC index", never on page load or score refreshes.
@@ -962,8 +970,8 @@ async function updateDivisionList() {
     discovered = found; discoveryError = "";
     try { localStorage.removeItem(KEY + "-backoff"); } catch (e) {}
   } catch (e) {
-    setBackoff(e.status === 429);
-    discoveryError = e.status === 429 ? "Google asked us to slow down." : e.message;
+    discoveryError = discoveryHelp(e.message, e.status);
+    setBackoff(e.status === 429, discoveryError);
   }
   discovery = null;
   if (setup) renderListStatus();
@@ -1746,7 +1754,9 @@ function renderBrackets(s, html, sheet) {
 function renderListStatus() {
   const box = $("listStatus"); if (!box) return;
   const when = t => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  const wait = Math.ceil(backoffLeft() / 60e3);
+  const wait = Math.ceil(backoffLeft() / 60e3), paused = readBackoff();
+  // A failure from before a reload is still worth showing while the button is paused
+  const failure = discoveryError || (wait ? paused.error : "");
   const fromSheet = configDivs && configDivs.divs.length;
   const f = discovered.failed || [];
   let body = `<p>${fromSheet ? `The division list comes from your divisions sheet (${baseDivisions().length} divisions).`
@@ -1759,12 +1769,15 @@ function renderListStatus() {
         : `<button class="ghost" type="button" id="updateList" ${wait ? "disabled" : ""}>Build rows from the NCHVC index</button>`) : ""}</p>
     <p style="color:var(--muted);font-size:14px">${discovered === SAVED_LIST ? `These rows come from the saved index discovery (${esc(when(discovered.at))}).` : `Rebuilt from the NCHVC index ${esc(when(discovered.at))}.`}
       ${API_KEY ? "Rebuilding uses the Google Sheets API (17 reads) and is only needed if the index changes, such as next year." : ""}
-      ${wait ? ` Google asked us to slow down, so rebuilding is paused for about ${wait} minute${wait === 1 ? "" : "s"}.` : ""}</p>
-    ${discoveryError && !discovery ? `<p style="color:var(--bad)">Rebuilding failed: ${esc(discoveryError)}</p>` : ""}
+      ${wait ? ` ${paused.hitLimit ? "Google asked us to slow down, so rebuilding" : "After that failure, rebuilding"} is paused for about ${wait} minute${wait === 1 ? "" : "s"}.` : ""}</p>
+    ${failure && !discovery ? `<p style="color:var(--bad)">Rebuilding failed: ${esc(failure)}</p>` : ""}
     ${f.length ? `<details><summary>${f.length} tab${f.length === 1 ? "" : "s"} couldn't be read (their layout isn't supported yet)</summary><ul>${
       f.map(x => `<li>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>` : esc(x.name)}${x.tab ? ` (${esc(x.book)}, tab “${esc(x.tab)}”)` : ""}: ${esc(x.reason)}</li>`).join("")}</ul></details>` : ""}`;
   box.innerHTML = `<h2>Division list</h2>${body}`;
   const b = $("updateList"); if (b) b.addEventListener("click", updateDivisionList);
+  // Turn the button back on when the pause ends
+  clearTimeout(renderListStatus.timer);
+  if (wait) renderListStatus.timer = setTimeout(() => { if (setup) renderListStatus(); }, Math.min(backoffLeft(), 60e3) + 500);
   $("copyRows").addEventListener("click", async e => {
     const t = $("sheetRows"); t.select();
     try { await navigator.clipboard.writeText(t.value); } catch (err) { document.execCommand("copy"); }
