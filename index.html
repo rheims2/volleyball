@@ -1882,7 +1882,10 @@ const IN_APP = /FBAN|FBAV|Instagram|Snapchat|Line\//.test(UA);   // in-app brows
 const standalone = () => navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
 const SHARE_ICON = `<svg width="17" height="19" viewBox="0 0 17 19" fill="none" stroke="#141416" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-label="Share"><path d="M8.5 12V1.5M5 4.8l3.5-3.3L12 4.8"/><path d="M5.5 7.5H3a1.5 1.5 0 0 0-1.5 1.5v7.5A1.5 1.5 0 0 0 3 18h11a1.5 1.5 0 0 0 1.5-1.5V9A1.5 1.5 0 0 0 14 7.5h-2.5"/></svg>`;
 let installEvent = null;
-if (SITE_LABEL) { const t = document.querySelector('meta[name="apple-mobile-web-app-title"]'); t.content = SITE_LABEL + " " + t.content; }
+// config.js appName names the Home Screen app ("Regionals", "Nationals"); iOS reads this tag when it's added
+const APP_NAME = VIEWER_CONFIG.appName || "Regionals";
+document.querySelector('meta[name="apple-mobile-web-app-title"]').content = (SITE_LABEL ? SITE_LABEL + " " : "") + APP_NAME;
+$("installTitle").textContent = `Add ${APP_NAME} to your Home Screen`;
 function installHow() {
   if (IS_IOS) return IN_APP
     ? "Open this page in Safari first (this app's <b>•••</b> menu, then <b>Open in browser</b>). Then tap Share and <b>Add to Home Screen</b>."
